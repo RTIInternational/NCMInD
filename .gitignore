@@ -1,0 +1,19 @@
+# Project Files
+**/model_output/
+hai_env/
+*.png
+NCMIND/location_calibration/runs_*
+syn_pop_NC*
+
+# Typical Ignores
+__pycache__/
+*.pyc
+.idea/
+.coverage*
+.DS_Store
+.idea
+documents/
+pycallgraph*
+.Rproj.user
+.ipynb_checkpoints/
+.cache/
