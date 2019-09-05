@@ -1,4 +1,4 @@
-# NCMiND
+# NCMInD
 
 The HAI project aims to create an accurate representation of patient movement within the UNC Health Care system. On top of this, disease specific state modules can be appended to this location module, in order to model HAI transmissions and potential interventions. 
 
