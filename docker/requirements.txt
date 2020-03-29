@@ -3,7 +3,7 @@ pytest-cov==2.7.1
 numpy==1.14.2
 numba==0.43.1
 pandas==0.24.2
-Pillow==4.2.0
+Pillow==6.2.0
 python-dateutil==2.6.0
 PyYAML==3.12
 six==1.10.0
