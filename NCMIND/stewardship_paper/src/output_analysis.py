@@ -1,6 +1,6 @@
 
 from src.analyze import Analyze
-from src.state import *
+from src.state import NameState, CDIState
 import pandas as pd
 
 # Get the locations

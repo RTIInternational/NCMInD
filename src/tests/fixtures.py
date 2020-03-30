@@ -1,82 +1,76 @@
+
 import pytest
-from pandas import read_csv
+import pandas as pd
 from pathlib import Path
 import json
-import sys
-sys.path.append("")
-from src.ldm import LDM
+from src.ldm import Ldm
 
 
-with open("NCMIND/cdi_calibration/default/parameters.json") as file:
-    params = json.load(file)
-
-params['base']['limit_pop'] = 100
-params['base']['population_file'] = 'synthetic_population_orange.csv'
-with open("NCMIND/demo/unit_tests/parameters.json", 'w') as outfile:
-    json.dump(params, outfile, indent=4)
+# ----- Update the CDI model parameters: # TODO
+# with open("NCMINDv3/cdi_calibration/default/parameters.json") as file:
+#     params = json.load(file)
+# params['base']['limit_pop'] = 100
+# params['base']['population_file'] = "NCMINDv3/data/synthetic_population/synthetic_population_orange.csv"
+# with open("NCMINDv3/demo/cdi_model/parameters.json", 'w') as outfile:
+#     json.dump(params, outfile, indent=4)
 
 
 @pytest.fixture(scope="session")
 def model():
-    return LDM(exp_dir='NCMIND/demo', scenario='unit_tests')
+    # ----- Update the location model parameters
+    with open("NCMIND/location_calibration/run_1/parameters.json") as file:
+        params = json.load(file)
+    params['base']['limit_pop'] = 100
+    params['base']['population_file'] = "NCMIND/data/synthetic_population/synthetic_population_orange.csv"
+    with open("NCMIND/location_demo/run_1/parameters.json", 'w') as outfile:
+        json.dump(params, outfile, indent=4)
+    # ----- Make the model
+    model = Ldm(experiment='NCMIND', scenario='location_demo', run='run_1')
+    model.collapse_sql_connection()
+    return model
 
 
 @pytest.fixture(scope="session")
-def data_row(model):
-    return model.data[0]
+def cdi_model():
+    Path("NCMIND/cdi_demo/").mkdir(exist_ok=True)
+    Path("NCMIND/cdi_demo/run_1").mkdir(exist_ok=True)
 
-
-@pytest.fixture(scope="session")
-def cdi_row(model):
-    return model.cdi['data'][0]
+    # ----- Update the location model parameters
+    with open("NCMIND/cdi_calibration/run_1/parameters.json") as file:
+        params = json.load(file)
+    params['base']['limit_pop'] = 100
+    params['base']['population_file'] = "NCMIND/data/synthetic_population/synthetic_population_orange.csv"
+    with open("NCMIND/cdi_demo/run_1/parameters.json", 'w') as outfile:
+        json.dump(params, outfile, indent=4)
+    # ----- Make the model
+    model = Ldm(experiment='NCMIND', scenario='cdi_demo', run='run_1')
+    model.collapse_sql_connection()
+    return model
 
 
 @pytest.fixture()
 def synthetic_population_orange():
-    return read_csv('NCMIND/data/synthetic_population/synthetic_population_orange.csv')
+    return pd.read_csv('NCMIND/data/synthetic_population/synthetic_population_orange.csv')
 
 
 @pytest.fixture()
 def transition_files():
-    d = "NCMIND/data/raw/"
+    d = "NCMIND/data/input/"
     t_files = dict()
-    t_files['unc'] = read_csv(Path(d, 'location_transitions/UNC.csv'))
-    t_files['non_unc'] = read_csv(Path(d, 'location_transitions/Non-UNC.csv'))
-    t_files['lt'] = read_csv(Path(d, 'location_transitions/LT.csv'))
-    t_files['nh'] = read_csv(Path(d, 'location_transitions/NH.csv'))
-    t_files['community'] = read_csv(Path(d, 'location_transitions/Community.csv'))
-    t_files['unc_to_unc'] = read_csv(Path(d, 'location_transitions/UNC-to-UNC.csv'))
-
+    t_files['community'] = pd.read_csv(Path(d, 'community_transitions.csv'))
+    t_files['LARGE'] = pd.read_csv(Path(d, "large_discharge_transitions.csv"))
+    t_files['SMALL'] = pd.read_csv(Path(d, "small_discharge_transitions.csv"))
+    t_files['location'] = pd.read_csv(Path(d, "location_transitions.csv"))
+    t_files['logrecnos'] = pd.read_csv(Path(d, 'logrecnos.csv'))
+    t_files['UNC'] = pd.read_csv(Path(d, 'unc_to_unc_transitions.csv'))
     return t_files
 
 
 @pytest.fixture()
-def name_lists():
-    name_lists = dict()
-    names = ['County', 'County Code', 'From', 'To', 'Race', 'Sex', 'Age Group', 'Transition Probability',
-             'Caldwell', 'Chatham', 'High Point', 'Johnston', 'Lenoir', 'Margaret', 'Nash', 'Rex', 'UNC-CH', 'Wayne']
-    unc_names = ['County', 'County Code', 'Hospital', 'Caldwell', 'Chatham', 'High Point', 'Johnston',
-                 'Lenoir', 'Margaret', 'Nash', 'Rex', 'UNC-CH', 'Wayne']
-    hospitals = ['Caldwell', 'Chatham', 'High Point', 'Johnston', 'Lenoir', 'Margaret', 'Nash', 'Rex', 'UNC-CH',
-                 'Wayne']
-    name_lists['names'] = names
-    name_lists['unc_names'] = unc_names
-    name_lists['hospitals'] = hospitals
-
-    return name_lists
-
-
-@pytest.fixture()
-def initial_files():
-    d = "NCMIND/data/raw/"
-    initial_files = dict()
-    # Initial UNC File
-    initial_files['unc'] = read_csv(Path(d, 'initial_population/Initial_UNC_Population.csv'))
-    # Initial Non-UNC File
-    initial_files['non_unc'] = read_csv(Path(d, 'initial_population/Initial_Non-UNC_Population.csv'))
-    # Initial NH File
-    initial_files['nh'] = read_csv(Path(d, 'initial_population/Initial_NH_Population.csv'))
-    # Initial LT File
-    initial_files['lt'] = read_csv(Path(d, 'initial_population/Initial_LT_Population.csv'))
-
-    return initial_files
+def id_files():
+    d = 'NCMIND/data/IDs/'
+    id_files = dict()
+    id_files['hospitals'] = pd.read_csv(Path(d, 'hospital_ids.csv'))
+    id_files['nursing_homes'] = pd.read_csv(Path(d, 'nh_ids.csv'))
+    id_files['ltachs'] = pd.read_csv(Path(d, 'lt_ids.csv'))
+    return id_files

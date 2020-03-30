@@ -1,25 +1,23 @@
 
+import pandas as pd
+import numpy as np
 import os
-from numpy import mean
-import sys
-sys.path.append('')
 
-try:
-    from src.analyze import *
-    from src.ldm import *
-except Exception as E:
-    raise
+from NCMIND.src.analyze import Analyze
+from src.state import NameState
+from src.misc_functions import int_to_category
 
 
 if __name__ == "__main__":
-    folder = "NCMIND/stewardship_paper/"
-    scenarios = os.listdir(folder)
+    experiment = "NCMIND"
+    scenarios = os.listdir("NCMIND/stewardship_paper/")
 
     results = []
     for scenario in scenarios:
         print(scenario)
         if ("1." in scenario) or ("normal" in scenario):
-            runs = os.listdir(folder + scenario)
+            scenario = "stewardship_paper/" + scenario
+            runs = os.listdir(experiment + "/" + scenario)
 
             community_antibiotics = []
             nh_antibiotics = []
@@ -28,25 +26,26 @@ if __name__ == "__main__":
 
             for run in runs:
                 if "run_" in run:
-                    a_object = Analyze(exp_dir=folder, scenario=scenario, run=run)
+                    analysis = Analyze(experiment=experiment, scenario=scenario, run=run)
 
                     # Find all antibiotic cases:
-                    e = a_object.events
-                    anti = e[(e.State == NameState.ANTIBIOTICS) & (e.New == 1) &
-                             (e.County.isin(a_object.catchment_counties))]
+                    events = analysis.events
+                    events['Category'] = int_to_category(analysis.locations, events.Location)
+                    catchment = events.County.isin(analysis.catchment_counties)
+                    anti = events[(events.State == NameState.ANTIBIOTICS) & (events.New == 1) & (catchment)]
 
-                    community_antibiotics.append(anti[anti.Location.isin(a_object.COMMUNITY)].shape[0])
-                    nh_antibiotics.append(anti[anti.Location.isin(a_object.NH)].shape[0])
-                    lt_antibiotics.append(anti[anti.Location.isin(a_object.LT)].shape[0])
-                    unc_antibiotics.append(anti[anti.Location.isin(a_object.UNC)].shape[0])
+                    community_antibiotics.append(len(anti[anti.Category == 'COMMUNITY']))
+                    nh_antibiotics.append(len(anti[anti.Category == 'NH']))
+                    lt_antibiotics.append(len(anti[anti.Category == 'LT']))
+                    unc_antibiotics.append(len(anti[anti.Category == 'UNC']))
 
             results.append([scenario,
-                            mean(community_antibiotics),
-                            mean(nh_antibiotics),
-                            mean(lt_antibiotics),
-                            mean(unc_antibiotics)])
+                            np.mean(community_antibiotics),
+                            np.mean(nh_antibiotics),
+                            np.mean(lt_antibiotics),
+                            np.mean(unc_antibiotics)])
 
     df = pd.DataFrame(results)
     df.columns = ['Scenario', 'Community', 'NH', 'LT', 'UNC']
     df = df.sort_values(by='Scenario')
-    df.to_csv(folder + "antibiotics_results.csv", index=False)
+    df.to_csv("NCMIND/stewardship_paper/antibiotics_results.csv", index=False)

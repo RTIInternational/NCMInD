@@ -1,6 +1,5 @@
 
 import sys
-sys.path.append("")
 
 from src.analyze import *
 from src.ldm import *

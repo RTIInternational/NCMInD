@@ -1,0 +1,18 @@
+﻿Parameter,Old State,New State,Durham Description,Location,Daily,Daily Low,Daily High
+CDI Base Rate (COMMUNITY),Colonized,CDI,Base Rate of CDI Developing in Hospital,STACH & LTACH,6.30E-06,2.90E-06,1.20E-05
+CDI Base Rate (STACH),Colonized,CDI,Base Rate of CDI Developing in Community,Community,2.10E-04,1.00E-04,4.70E-04
+CDI Base Rate (NH),Colonized,CDI,Base Rate of CDI Developing in LTCF,Nursing Home,8.60E-05,1.10E-05,0.000219976
+CDI Recovery,CDI,Colonized/Susceptible/Dead,Rate of Recovery from CDI,ALL,0.094257292,0.08789485,0.104165865
+CDI Recurrence,Colonized,CDI,Rate at which recurrence develops in recovered patients,ALL,0.273850963,0.181269247,0.650062251
+CDI Recurrence Probability 1,Colonized,CDI,Probability that a patient recovering from primary CDI will have >1 recurrence,ALL,0.24,0.15,0.36
+CDI Recurrence Probability 2,Colonized,CDI,Probability that a patient recovering from a first recurrence will have a second recurrence,ALL,0.34,0.2,0.48
+CDI Recurrence Probability 3,Colonized,CDI,Probability that a patient recovering from multiple recurrences will have an additional recurrence,ALL,0.56,0.41,0.68
+Colonization Clearance,Colonized,Susceptible,Spontaneous clearance of asymptomatic C. difficile colonization,ALL,0.020781035,0.01587268,0.02566491
+Base Colonization Rate (COMMUNITY),Susceptible,Colonized,Community Force of Colonization,Community,0.00119928,0.000499875,0.002297357
+Base Colonization Rate (STACHs/LTACHs),Susceptible,Colonized,Hospital Force of Colonized,STACH & LTACH,0.022737516,0.016856315,0.031493418
+Base Colonization Rate (NH),Susceptible,Colonized,LTCF Forze of Colonization,Nursing Home,0.003693163,0.000959539,0.007670431
+Relative Risk (Concurrent Conditions),.,.,Base rate of CDI developing given concurrent conditions,ALL,2.6,0.78,6.8
+"Relative Risk (Age, 50-64)",.,.,Relative risk for CDI among persons 50–65 y of age vs. those <50 y of age,ALL,2.2,1.5,3
+"Relative Risk (Age, 65+)",.,.,Relative risk for CDI among persons 65+ y of age vs. those <50 y of age,ALL,3.2,2.1,4.3
+Contact Precautions: Identified,Susceptible,Colonized,Probability that a patient with CDI is properly identified and given enhanced infection control measures,Facilities,0.96,0.94,0.99
+Contact Precautions: Effectiveness,Susceptible,Colonized,Effectiveness of enhanced infection control measures in reducing transmission,Facilities,0.52,0.37,0.68
