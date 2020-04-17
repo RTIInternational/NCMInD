@@ -2,6 +2,13 @@
 
 The HAI project aims to create an accurate representation of patient movement within the UNC Health Care system. On top of this, disease specific state modules can be appended to this location module, in order to model HAI transmissions and potential interventions. 
 
+### Two Notes:
+1. We used RTIs syntehtic population as a base population for this work. 
+
+	Rineer, J. I., Bobashev, G. V., Jones, K. R., Hadley, E. C., Kery, C., et al. (2019) RTI 2017 Synthetic Population Extract. RTI International. Accessed 09/2019.
+
+2. Documentation for the location model (544 location nodes) can be found [here](Stewardship-paper-ODD/S1 - Stewardship ODD.pdf).
+
 
 ## Virtual Environment Setup
 
