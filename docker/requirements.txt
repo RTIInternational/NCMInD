@@ -1,7 +1,7 @@
 pytest==4.6.3
 pytest-cov==2.7.1 
 numpy==1.17.4
-numba==0.43.1
+numba==0.47
 pandas==0.25.3
 Pillow==4.2.0
 python-dateutil==2.6.1

@@ -1,4 +1,3 @@
-
 import numpy as np
 from copy import deepcopy
 
@@ -8,8 +7,12 @@ from src.tests.fixtures import cdi_model
 def test_initialization(cdi_model):
     # Randomly assign locations and then initialize antibiotics
     id_list = list(cdi_model.location.locations.facilities.keys())
-    new_locations = np.random.choice(id_list, replace=True, size=cdi_model.population.shape[0])
-    new_locations = [cdi_model.location.locations.facilities[item]['int'] for item in new_locations]
+    new_locations = np.random.choice(
+        id_list, replace=True, size=cdi_model.population.shape[0]
+    )
+    new_locations = [
+        cdi_model.location.locations.facilities[item]["int"] for item in new_locations
+    ]
     cdi_model.location.location.values = np.array(new_locations)
 
     cdi_model.disease.antibiotics.initialize_probabilities()
@@ -56,4 +59,4 @@ def test_create_antibiotics_type_dictionary(cdi_model):
     pass
 
 
-__all__ = ['cdi_model']
+__all__ = ["cdi_model"]

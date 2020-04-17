@@ -1,4 +1,3 @@
-
 import numpy as np
 import pandas as pd
 from bisect import bisect
@@ -12,7 +11,7 @@ def create_cdf(p: list) -> list:
     p : a list of probabilities that add to 1
     """
     s1 = sum(p)
-    if (s1 < .999) or (s1 > 1.001):
+    if (s1 < 0.999) or (s1 > 1.001):
         print(p)
         raise ValueError("You cannot give a list, p, that does not sum to 1.")
     cdf = list()
@@ -76,7 +75,7 @@ def int_to_category(locations, an_array: np.array) -> list:
     locations : a locations modeling object
     an_array : a numpy array containing integers representing locations
     """
-    return [locations.convert_int(item, 'category') for item in an_array]
+    return [locations.convert_int(item, "category") for item in an_array]
 
 
 def row_to_df(m, u_id):
@@ -88,22 +87,14 @@ def row_to_df(m, u_id):
 def to_df(m):
     df = pd.DataFrame(m.data)
     df.columns = m.columns
-    df['Location'] = [m.current_locations[i] if i in m.current_locations else 0 for i in range(len(df))]
-    df['LOS'] = [m.current_los[i] if i in m.current_los else 0 for i in range(len(df))]
+    df["Location"] = [
+        m.current_locations[i] if i in m.current_locations else 0
+        for i in range(len(df))
+    ]
+    df["LOS"] = [m.current_los[i] if i in m.current_los else 0 for i in range(len(df))]
     return df
 
 
-sex_dictionary = {
-    "M": 1,
-    "F": 2
-}
-race_dictionary = {
-    "White": 1,
-    "Black": 2,
-    "Other": 3
-}
-age_dictionary = {
-    "L50": 0,
-    "50-64": 1,
-    "65+": 2
-}
+sex_dictionary = {"M": 1, "F": 2}
+race_dictionary = {"White": 1, "Black": 2, "Other": 3}
+age_dictionary = {"L50": 0, "50-64": 1, "65+": 2}

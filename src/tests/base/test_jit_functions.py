@@ -1,4 +1,3 @@
-
 import pytest
 from numpy import array
 
@@ -14,11 +13,11 @@ def test_assign_conditions(model):
 
     # ----- Those ages 1 (50-64) should be assigned concurrent conditions 23.74% of the time
     age_1 = concurrent_conditions[ages == 1]
-    assert sum(age_1) / len(age_1) == pytest.approx(.2374, abs=.02)
+    assert sum(age_1) / len(age_1) == pytest.approx(0.2374, abs=0.02)
 
     # ----- Those ages 2 (65+) should be assigned concurrent conditions 54.97% of the time
     age_2 = concurrent_conditions[ages == 2]
-    assert sum(age_2) / len(age_2) == pytest.approx(.5497, abs=.02)
+    assert sum(age_2) / len(age_2) == pytest.approx(0.5497, abs=0.02)
 
 
 def test_update_community_probability(model):
@@ -32,17 +31,17 @@ def test_update_community_probability(model):
     age_2 = model.location.location.probabilities[model.age_groups == 2]
     age_2_before = age_2.mean()
 
-    new_probabilities = \
-        update_community_probability(
-            cp=model.location.location.probabilities,
-            age=model.age_groups,
-            cc=concurrent_conditions)
+    new_probabilities = update_community_probability(
+        cp=model.location.location.probabilities,
+        age=model.age_groups,
+        cc=concurrent_conditions,
+    )
 
     # After Updates: Probabilities should go up
     age_1 = new_probabilities[model.age_groups == 1]
-    assert age_1.mean() / age_1_before == pytest.approx(2.316, abs=.01)
+    assert age_1.mean() / age_1_before == pytest.approx(2.316, abs=0.01)
     age_2 = new_probabilities[model.age_groups == 2]
-    assert age_2.mean() / age_2_before == pytest.approx(1.437, abs=.01)
+    assert age_2.mean() / age_2_before == pytest.approx(1.437, abs=0.01)
 
 
-__all__ = ['model']
+__all__ = ["model"]

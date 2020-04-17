@@ -1,4 +1,3 @@
-
 import numpy as np
 from numba import njit
 
@@ -11,10 +10,10 @@ def assign_conditions(age: np.array, randoms: np.array):
     conditions = np.zeros(len(age), dtype=np.int8)
     for i in range(len(age)):
         if age[i] == 1:
-            if randoms[i] < .2374:
+            if randoms[i] < 0.2374:
                 conditions[i] = 1
         elif age[i] == 2:
-            if randoms[i] < .5497:
+            if randoms[i] < 0.5497:
                 conditions[i] = 1
     return conditions
 

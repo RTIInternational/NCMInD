@@ -1,4 +1,3 @@
-
 import pandas as pd
 import numpy as np
 
@@ -31,8 +30,8 @@ class Ldm:
         self.output_dir.mkdir(exist_ok=True)
 
         # ----- Setup the model parameters
-        self.params = Parameters(Path(self.run_dir, 'parameters.json'))
-        self.seed = self.params.base['seed']
+        self.params = Parameters(Path(self.run_dir, "parameters.json"))
+        self.seed = self.params.base["seed"]
         self.rng = np.random.RandomState(self.seed)
 
         self.time = 0
@@ -44,41 +43,57 @@ class Ldm:
         self.county_codes = self.population.County_Code.values
         self.age_groups = self.population.Age.values
         self.logrecnos = self.population.logrecno.values
-        self.population = self.population.drop(['County_Code', 'Age', 'logrecno'], axis=1)
+        self.population = self.population.drop(
+            ["County_Code", "Age", "logrecno"], axis=1
+        )
 
-        self.concurrent_conditions =\
-            assign_conditions(self.age_groups, self.rng.rand(len(self.population)))
+        self.concurrent_conditions = assign_conditions(
+            self.age_groups, self.rng.rand(len(self.population))
+        )
 
         # ----- For Event Tracking: Create the SQL Connection
-        self.event_columns = ['Unique_ID', 'Time', 'State', 'Location', 'LOS', 'Old', 'New', 'County']
+        self.event_columns = [
+            "Unique_ID",
+            "Time",
+            "State",
+            "Location",
+            "LOS",
+            "Old",
+            "New",
+            "County",
+        ]
         self.conn, self.cur = None, None
         self.create_sql_connection()
 
-        self.location = location_models[self.params.base['location_model']](
-            model=self,
-            params=self.params.location
+        self.location = location_models[self.params.base["location_model"]](
+            model=self, params=self.params.location
         )
-        self.disease = disease_models[self.params.base['disease_model']](
-            model=self,
-            params=self.params.disease
+        self.disease = disease_models[self.params.base["disease_model"]](
+            model=self, params=self.params.disease
         )
 
         life_dict = dict()
-        for k1, v1 in self.params.life['death_probabilities'].items():
-            for k2, v2 in self.params.life['death_multipliers'].items():
-                life_dict[AgeGroup[k1].value, self.location.locations.category_enum[k2].value] = v1 * v2
+        for k1, v1 in self.params.life["death_probabilities"].items():
+            for k2, v2 in self.params.life["death_multipliers"].items():
+                life_dict[
+                    AgeGroup[k1].value, self.location.locations.category_enum[k2].value
+                ] = (v1 * v2)
 
         self.life = Life(
             model=self,
             params=self.params.life,
             enum=LifeState,
             transition_dict=life_dict,
-            key_types=[AgeGroup, self.location.locations.category_enum]
+            key_types=[AgeGroup, self.location.locations.category_enum],
         )
         # --- Death probability is based on Age + Location
         locations = [
-            self.location.locations.convert_int(l, 'int_category') for l in self.location.location.values]
-        self.life.probabilities = self.life.find_probabilities(list(zip(self.age_groups, locations)))
+            self.location.locations.convert_int(l, "int_category")
+            for l in self.location.location.values
+        ]
+        self.life.probabilities = self.life.find_probabilities(
+            list(zip(self.age_groups, locations))
+        )
 
         self.disease.collect_agents(initiate=True)
 
@@ -86,30 +101,32 @@ class Ldm:
     # ------ Read population
     # ------------------------------------------------------------------------------------------------------------------
     def read_population(self) -> pd.DataFrame:
-        print('One moment: Reading population ...')
+        print("One moment: Reading population ...")
         pop = pd.read_csv(
-            self.params.base['population_file'],
+            self.params.base["population_file"],
             dtype={
-                'County_Code': np.int64,    # Must be int for quick dictionary lookups
-                'Sex': np.int8,
-                'Age': np.int64,            # Must be int for quick dictionary lookups
-                'Age_Years': np.int8,
-                'tract': np.int32,
-                'blkgrp': np.int8,
-                'logrecno': np.int16,
-                'Start_Location': np.int16
-            }
+                "County_Code": np.int64,  # Must be int for quick dictionary lookups
+                "Sex": np.int8,
+                "Age": np.int64,  # Must be int for quick dictionary lookups
+                "Age_Years": np.int8,
+                "tract": np.int32,
+                "blkgrp": np.int8,
+                "logrecno": np.int16,
+                "Start_Location": np.int16,
+            },
         )
-        if self.params.base['limit_pop'] < pop.shape[0]:
-            pop = pop.sample(self.params.base['limit_pop'], random_state=self.seed).reset_index(drop=True)
+        if self.params.base["limit_pop"] < pop.shape[0]:
+            pop = pop.sample(
+                self.params.base["limit_pop"], random_state=self.seed
+            ).reset_index(drop=True)
         return pop
 
     # ------------------------------------------------------------------------------------------------------------------
     # ------ Run Model
     # ------------------------------------------------------------------------------------------------------------------
     def run_model(self):
-        for day in range(self.params.base['time_horizon']):
-            print('Starting day: %s' % day) if day % 15 == 0 else None
+        for day in range(self.params.base["time_horizon"]):
+            print("Starting day: %s" % day) if day % 15 == 0 else None
             self.time = day
             self.step()
         self.daily_counts = self.daily_counts.fillna(0)
@@ -126,17 +143,29 @@ class Ldm:
         """
         agent_ids = []
         if (self.time % 15 == 0) and (len(self.life.agents_to_recreate) > 0):
-            agent_ids = [item for item in self.life.agents_to_recreate if item < self.population.shape[0]]
+            agent_ids = [
+                item
+                for item in self.life.agents_to_recreate
+                if item < self.population.shape[0]
+            ]
         if len(agent_ids) > 0:
             l1 = len(self.unique_ids)
-            self.unique_ids = np.append(self.unique_ids, [range(l1, l1 + len(agent_ids))])
-            self.county_codes = np.append(self.county_codes, self.county_codes[agent_ids])
+            self.unique_ids = np.append(
+                self.unique_ids, [range(l1, l1 + len(agent_ids))]
+            )
+            self.county_codes = np.append(
+                self.county_codes, self.county_codes[agent_ids]
+            )
             self.logrecnos = np.append(self.logrecnos, self.logrecnos[agent_ids])
             self.age_groups = np.append(self.age_groups, self.age_groups[agent_ids])
 
             # --- Assign concurrent conditions
-            conditions = assign_conditions(self.age_groups[agent_ids], self.rng.rand(len(agent_ids)))
-            self.concurrent_conditions = np.append(self.concurrent_conditions, conditions).astype(np.int8)
+            conditions = assign_conditions(
+                self.age_groups[agent_ids], self.rng.rand(len(agent_ids))
+            )
+            self.concurrent_conditions = np.append(
+                self.concurrent_conditions, conditions
+            ).astype(np.int8)
 
             self.location.regenerate_agents(agent_ids)
             self.disease.regenerate_agents(agent_ids)
@@ -147,12 +176,16 @@ class Ldm:
     # ------------------------------------------------------------------------------------------------------------------
     def make_events(self) -> pd.DataFrame:
         query = "SELECT * FROM event_tracker"
-        return pd.DataFrame(self.cur.execute(query).fetchall(), columns=self.event_columns)
+        return pd.DataFrame(
+            self.cur.execute(query).fetchall(), columns=self.event_columns
+        )
 
     def save_output(self):
         # ----- Save all of the model events, daily counts, and infectious cases
-        self.make_events().to_csv(Path(self.output_dir, 'model_events.csv'), compression='gzip', index=False)
-        self.daily_counts.to_csv(Path(self.output_dir, 'daily_counts.csv'), index=True)
+        self.make_events().to_csv(
+            Path(self.output_dir, "model_events.csv"), compression="gzip", index=False
+        )
+        self.daily_counts.to_csv(Path(self.output_dir, "daily_counts.csv"), index=True)
         self.disease.save_output()
 
     # ------------------------------------------------------------------------------------------------------------------
@@ -164,8 +197,12 @@ class Ldm:
         self.conn = connect(":memory:")
         self.cur = self.conn.cursor()
         # ----- Add Event Tracker Table
-        sql.to_sql(pd.DataFrame(
-            columns=list(self.event_columns), dtype=int), name='event_tracker', con=self.conn, index=False)
+        sql.to_sql(
+            pd.DataFrame(columns=list(self.event_columns), dtype=int),
+            name="event_tracker",
+            con=self.conn,
+            index=False,
+        )
         self.cur.execute("CREATE INDEX id_index ON event_tracker (Unique_ID);")
 
     def collapse_sql_connection(self):
@@ -183,6 +220,17 @@ class Ldm:
         location_status = self.location.location.values[unique_id]
         county_code = self.county_codes[unique_id]
 
-        a_tuple = (unique_id, self.time, name_state, location_status, los, old, new, county_code)
+        a_tuple = (
+            unique_id,
+            self.time,
+            name_state,
+            location_status,
+            los,
+            old,
+            new,
+            county_code,
+        )
         a_tuple = tuple([int(item) for item in a_tuple])
-        self.cur.execute(''' INSERT INTO event_tracker VALUES(?,?,?,?,?,?,?,?) ''', a_tuple)
+        self.cur.execute(
+            """ INSERT INTO event_tracker VALUES(?,?,?,?,?,?,?,?) """, a_tuple
+        )

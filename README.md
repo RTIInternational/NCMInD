@@ -47,6 +47,9 @@ From the root directory of the project:
 
 Container is running here: `http://localhost:1111/tree?`
 
+## Next Steps
+View the README.md in `NCMInD/`.
+
 
 ## Disclaimer
 

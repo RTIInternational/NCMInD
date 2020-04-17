@@ -1,4 +1,3 @@
-
 import pytest
 from pandas import DataFrame
 
@@ -6,15 +5,18 @@ from src.tests.fixtures import model, transition_files, id_files
 
 
 def test_community(transition_files: DataFrame):
-    c = transition_files['community']
+    c = transition_files["community"]
     # ----- 100 Counties, and 3 age groups
     assert c.shape[0] == 300
 
     # ----- The sum of UNC, Large, Small, LT, and NH should be the probability
-    assert max(c.Probability - c[['UNC', 'LARGE', 'SMALL', 'LT', 'NH']].sum(axis=1)) < 1 * 10**-7
+    assert (
+        max(c.Probability - c[["UNC", "LARGE", "SMALL", "LT", "NH"]].sum(axis=1))
+        < 1 * 10 ** -7
+    )
 
     # ----- Agents cannot move to the community from the community
-    value = c['COMMUNITY'].unique()
+    value = c["COMMUNITY"].unique()
     assert len(value) == 1
     assert value[0] == 0
 
@@ -24,8 +26,8 @@ def test_community(transition_files: DataFrame):
 
 
 def test_discharge_files(transition_files, id_files):
-    hospitals = id_files['hospitals']
-    for file_name in ['LARGE', 'SMALL', 'UNC']:
+    hospitals = id_files["hospitals"]
+    for file_name in ["LARGE", "SMALL", "UNC"]:
         # ----- There are 100 counties
         file = transition_files[file_name]
         assert len(file) == 100
@@ -42,35 +44,39 @@ def test_discharge_files(transition_files, id_files):
 
 
 def test_nh(model, transition_files):
-    file = transition_files['location']
-    nh = file[file.Facility == 'NH']
+    file = transition_files["location"]
+    nh = file[file.Facility == "NH"]
 
     # ----- Age should only be 2
-    value = nh['Age'].unique()
+    value = nh["Age"].unique()
     assert len(value) == 1
     assert value[0] == 2
 
     # ----- Rows should add to 1
-    value = round(nh[list(model.location.locations.categories.keys())].sum(axis=1), 5).unique()
+    value = round(
+        nh[list(model.location.locations.categories.keys())].sum(axis=1), 5
+    ).unique()
     assert len(value) == 1
     assert value[0] == 1
 
     # ----- Community, LT, and NH all have specific values
-    assert nh.COMMUNITY.mean() == pytest.approx(.673, 0.1)
+    assert nh.COMMUNITY.mean() == pytest.approx(0.673, 0.1)
     assert nh.LT.mean() == 0
     assert nh.NH.mean() == 0
 
 
 def test_lt(model, transition_files):
-    file = transition_files['location']
-    lt = file[file.Facility == 'LT']
+    file = transition_files["location"]
+    lt = file[file.Facility == "LT"]
 
     # ----- All Ages can go to LT
-    value = lt['Age'].unique()
+    value = lt["Age"].unique()
     assert len(value) == 3
 
     # ----- Rows should add to 1
-    value = round(lt[list(model.location.locations.categories.keys())].sum(axis=1), 5).unique()
+    value = round(
+        lt[list(model.location.locations.categories.keys())].sum(axis=1), 5
+    ).unique()
     assert len(value) == 1
     assert value[0] == 1
 
@@ -83,18 +89,21 @@ def test_lt(model, transition_files):
 
 
 def test_hospitals(model, transition_files, id_files):
-    hospitals = id_files['hospitals']
-    file = transition_files['location']
-    for file_name in ['LARGE', 'SMALL', 'UNC']:
+    hospitals = id_files["hospitals"]
+    file = transition_files["location"]
+    for file_name in ["LARGE", "SMALL", "UNC"]:
         hospital_ids = hospitals[hospitals.Category == file_name].ID.values
         hospital_file = file[file.Facility.isin(hospital_ids)]
 
         # ----- Should be all facilities for that specific category
-        values = hospital_file['Facility'].unique()
+        values = hospital_file["Facility"].unique()
         assert len(values) == len(hospital_ids)
 
         # ----- Rows should add to 1
-        value = round(hospital_file[list(model.location.locations.categories.keys())].sum(axis=1), 5).unique()
+        value = round(
+            hospital_file[list(model.location.locations.categories.keys())].sum(axis=1),
+            5,
+        ).unique()
         assert len(value) == 1
         assert value[0] == 1
 
@@ -103,4 +112,4 @@ def test_hospitals(model, transition_files, id_files):
         assert min(hospital_file[hospital_file.Age == 2].NH) > 0
 
 
-__all__ = ['model', 'transition_files', 'id_files']
+__all__ = ["model", "transition_files", "id_files"]

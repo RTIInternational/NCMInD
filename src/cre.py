@@ -25,7 +25,7 @@ class CreDiseaseModule(Disease):
             enum=AntibioticsState,
             transition_dict=create_antibiotics_dictionary(self.model),
             key_types=[self.model.location.locations.enum, AgeGroup],
-            antibiotic_risk=self.model.params.antibiotics['relative_risk']['cre']
+            antibiotic_risk=self.model.params.antibiotics["relative_risk"]["cre"],
         )
 
         # ----- CRE
@@ -40,18 +40,24 @@ class CreDiseaseModule(Disease):
         """ Do we start anyone with CRE?
         """
         # ----- Facility Initialization
-        non_community = self.model.location.location.values != self.model.location.locations.community
+        non_community = (
+            self.model.location.location.values
+            != self.model.location.locations.community
+        )
         unique_ids = self.model.unique_ids[non_community]
         probabilities = np.zeros(len(unique_ids))
-        probabilities.fill(self.params['cre']['point_prevalence']['non-ICU'])
+        probabilities.fill(self.params["cre"]["point_prevalence"]["non-ICU"])
         selected_agents = probabilities > self.model.rng.rand(len(probabilities))
         for unique_id in unique_ids[selected_agents]:
             self.cre.values[unique_id] = CREState.CRE
         # ----- Community Initialization
-        community = self.model.location.location.values == self.model.location.locations.community
+        community = (
+            self.model.location.location.values
+            == self.model.location.locations.community
+        )
         unique_ids = self.model.unique_ids[community]
         probabilities = np.zeros(len(unique_ids))
-        probabilities.fill(self.params['cre']['point_prevalence']['non-ICU'])  # TODO
+        probabilities.fill(self.params["cre"]["point_prevalence"]["non-ICU"])  # TODO
         selected_agents = probabilities > self.model.rng.rand(len(probabilities))
         for unique_id in unique_ids[selected_agents]:
             self.cre.values[unique_id] = CREState.CRE
@@ -77,30 +83,36 @@ class CreDiseaseModule(Disease):
 
         # ----- 1a: Community
         community_id = self.model.location.locations.community
-        in_community = self.model.unique_ids[(self.model.location.location.values == community_id) & susceptible_agents]
+        in_community = self.model.unique_ids[
+            (self.model.location.location.values == community_id) & susceptible_agents
+        ]
         probabilities = np.zeros(len(in_community))
-        probabilities.fill(self.params['cre']['betas']['base'])  # TODO
+        probabilities.fill(self.params["cre"]["betas"]["base"])  # TODO
         selected_agents = probabilities > self.model.rng.rand(len(probabilities))
         for unique_id in in_community[selected_agents]:
             self.cre_update(unique_id, CREState.CRE)
 
         # ----- 1b: Facility
-        in_facility = self.model.unique_ids[(self.model.location.location.values != community_id) & susceptible_agents]
+        in_facility = self.model.unique_ids[
+            (self.model.location.location.values != community_id) & susceptible_agents
+        ]
         probabilities = self.find_cre_probability(in_facility)
         selected_agents = probabilities > self.model.rng.rand(len(probabilities))
         for unique_id in in_facility[selected_agents]:
             self.cre_update(unique_id, CREState.CRE)
 
         # ----- 2: CRE Recovery
-        probabilities = np.array([self.params['recovery']] * len(cre_agents))
+        probabilities = np.array([self.params["recovery"]] * len(cre_agents))
         selected_agents = probabilities > self.model.rng.rand(len(probabilities))
         for unique_id in cre_agents[selected_agents]:
             # --- Create recovery options (Susceptible, Colonized, Death)
-            to_death = self.params['death']
+            to_death = self.params["death"]
             to_susceptible = 1 - to_death
             dist = [to_susceptible, to_death]
             options = [CREState.SUSCEPTIBLE, CREState.DEAD]
-            end_state = random_selection(self.model.rng.rand(1), create_cdf(dist), options)
+            end_state = random_selection(
+                self.model.rng.rand(1), create_cdf(dist), options
+            )
             self.cre_update(unique_id, end_state)
 
     def cre_update(self, unique_id: int, new_cre_state: CREState):
@@ -115,7 +127,7 @@ class CreDiseaseModule(Disease):
                 unique_id=unique_id,
                 name_state=NameState.CRE,
                 old=current_cre_state,
-                new=new_cre_state
+                new=new_cre_state,
             )
             self.cre.values[unique_id] = new_cre_state
             self.model.life.life_update(unique_id)
@@ -125,12 +137,19 @@ class CreDiseaseModule(Disease):
         if new_cre_state == CREState.CRE:
             self.most_recent_cre[unique_id] = self.model.time
             # --- Give Antibiotics
-            self.antibiotics.give_antibiotics([unique_id], previous_state=self.antibiotics.values[unique_id])
+            self.antibiotics.give_antibiotics(
+                [unique_id], previous_state=self.antibiotics.values[unique_id]
+            )
             # --- Extend their LOS
-            if self.model.location.location.values[unique_id] in self.model.location.locations.all_hospitals:
+            if (
+                self.model.location.location.values[unique_id]
+                in self.model.location.locations.all_hospitals
+            ):
                 self.model.location.current_los[unique_id] += 3
         # --- Record the CRE State Change
-        self.model.record_state_change(unique_id, NameState.CRE, current_cre_state, new_cre_state)
+        self.model.record_state_change(
+            unique_id, NameState.CRE, current_cre_state, new_cre_state
+        )
         self.cre.values[unique_id] = new_cre_state
 
     def find_cre_probability(self, agent_ids: np.array) -> np.array:
@@ -140,29 +159,44 @@ class CreDiseaseModule(Disease):
         locations = self.model.location.location.values[agent_ids]
         for i in range(len(agent_ids)):
             if agent_ids[i] in self.model.location.icu_patients:
-                probabilities[i] = self.cre_carriage['icus'][locations[i]]
+                probabilities[i] = self.cre_carriage["icus"][locations[i]]
             else:
-                probabilities[i] = self.cre_carriage['facilites'][locations[i]]
+                probabilities[i] = self.cre_carriage["facilites"][locations[i]]
         return probabilities
 
     def update_carriage_probability(self):
         """ Find the number of susceptible and cre carriage agents at each facility
         """
-        base = self.params['cre']['base_rates']['COMMUNITY']
+        base = self.params["cre"]["base_rates"]["COMMUNITY"]
 
-        susceptible_by_facility = {facility_id.value: [] for facility_id in self.model.location.locations.enum}
-        carriage_by_facility = {facility_id.value: [] for facility_id in self.model.location.locations.enum}
+        susceptible_by_facility = {
+            facility_id.value: [] for facility_id in self.model.location.locations.enum
+        }
+        carriage_by_facility = {
+            facility_id.value: [] for facility_id in self.model.location.locations.enum
+        }
 
-        non_community = self.model.location.location.values != self.model.location.locations.community
-        susceptible_ids = self.model.unique_ids[non_community & (self.cre.values == CREState.SUSCEPTIBLE)]
-        carriage_ids = self.model.unique_ids[non_community & (self.cre.values == CREState.CRE)]
+        non_community = (
+            self.model.location.location.values
+            != self.model.location.locations.community
+        )
+        susceptible_ids = self.model.unique_ids[
+            non_community & (self.cre.values == CREState.SUSCEPTIBLE)
+        ]
+        carriage_ids = self.model.unique_ids[
+            non_community & (self.cre.values == CREState.CRE)
+        ]
 
         # ----- Susceptible by Hospital
         for unique_id in susceptible_ids:
-            susceptible_by_facility[self.model.location.location.values[unique_id]].append(unique_id)
+            susceptible_by_facility[
+                self.model.location.location.values[unique_id]
+            ].append(unique_id)
         # ----- Carriage by Hospital
         for unique_id in carriage_ids:
-            carriage_by_facility[self.model.location.location.values[unique_id]].append(unique_id)
+            carriage_by_facility[self.model.location.location.values[unique_id]].append(
+                unique_id
+            )
 
         facilities = dict()
         icus = dict()
@@ -173,17 +207,28 @@ class CreDiseaseModule(Disease):
                 m1 = len(susceptible_by_facility[loc]) * len(carriage_by_facility[loc])
                 # --- Hospitals
                 if loc in self.model.location.locations.all_hospitals:
-                    facilities[loc] = max(self.params['betas']['non-ICU'] * m1, self.params['base_rates']['HOSPITAL'])
-                    icus[loc] = max(self.params['betas']['ICU'] * m1, self.params['base_rates']['ICU'])
+                    facilities[loc] = max(
+                        self.params["betas"]["non-ICU"] * m1,
+                        self.params["base_rates"]["HOSPITAL"],
+                    )
+                    icus[loc] = max(
+                        self.params["betas"]["ICU"] * m1,
+                        self.params["base_rates"]["ICU"],
+                    )
                 # --- LTACHs
-                if loc in self.model.location.locations.categories['LT']['ints']:
-                    facilities[loc] = max(self.params['betas']['LTACH'] * m1, self.params['base_rates']['LTACH'])
+                if loc in self.model.location.locations.categories["LT"]["ints"]:
+                    facilities[loc] = max(
+                        self.params["betas"]["LTACH"] * m1,
+                        self.params["base_rates"]["LTACH"],
+                    )
                 # --- NHs
-                if loc in self.model.location.locations.categories['NH']['ints']:
-                    facilities[loc] = max(self.params['betas']['NH'] * m1, self.params['base_rates']['NH'])
+                if loc in self.model.location.locations.categories["NH"]["ints"]:
+                    facilities[loc] = max(
+                        self.params["betas"]["NH"] * m1, self.params["base_rates"]["NH"]
+                    )
 
-        self.cre_carriage['facilites'] = facilities
-        self.cre_carriage['icus'] = icus
+        self.cre_carriage["facilites"] = facilities
+        self.cre_carriage["icus"] = icus
 
     def regenerate_agents(self, agent_ids: np.array):
         """ When an agent dies, we regenerate them. This function will prepare a new agent with CRE values
@@ -194,12 +239,16 @@ class CreDiseaseModule(Disease):
         # --- Assign no antibiotics
         antibiotics = np.zeros(len(ages))
         antibiotics.fill(AntibioticsState.OFF.value)
-        self.antibiotics.values = np.append(self.antibiotics.values, antibiotics).astype(np.int16)
+        self.antibiotics.values = np.append(
+            self.antibiotics.values, antibiotics
+        ).astype(np.int16)
 
         # --- Assign antibiotics end dates
         antibiotics_ends = np.zeros(len(ages))
         antibiotics_ends.fill(-1)
-        self.antibiotics.ends = np.append(self.antibiotics.ends, antibiotics_ends).astype(np.int16)
+        self.antibiotics.ends = np.append(
+            self.antibiotics.ends, antibiotics_ends
+        ).astype(np.int16)
 
         # --- Assign susceptible CRE states
         cre_states = np.zeros(len(ages))
@@ -207,8 +256,12 @@ class CreDiseaseModule(Disease):
         self.cre.values = np.append(self.cre.values, cre_states).astype(np.int16)
 
         # --- Look up their Antibiotics change probability
-        new_probabilities = self.antibiotics.find_probabilities(list(zip(locations, ages)))
-        self.antibiotics.probabilities = np.append(self.antibiotics.probabilities, new_probabilities)
+        new_probabilities = self.antibiotics.find_probabilities(
+            list(zip(locations, ages))
+        )
+        self.antibiotics.probabilities = np.append(
+            self.antibiotics.probabilities, new_probabilities
+        )
 
     def collect_agents(self, initiate: bool = False):
         """ Collect the daily information about CRE for all agents
@@ -218,10 +271,14 @@ class CreDiseaseModule(Disease):
             for an_anti in [0, 1]:
                 for a_location in self.model.location.locations.enum:
                     for a_cre_state in CREState:
-                        daily_count_index_list.append((an_anti, a_location.value, a_cre_state.value))
+                        daily_count_index_list.append(
+                            (an_anti, a_location.value, a_cre_state.value)
+                        )
             daily_counts = pd.DataFrame(daily_count_index_list)
-            daily_counts.columns = ['Antibiotics', 'Location', 'CRE']
-            self.model.daily_counts = daily_counts.set_index(['Antibiotics', 'Location', 'CRE'])
+            daily_counts.columns = ["Antibiotics", "Location", "CRE"]
+            self.model.daily_counts = daily_counts.set_index(
+                ["Antibiotics", "Location", "CRE"]
+            )
         # ----- Create arrays for antibiotics, life, location, and the cre_state
         antibiotics = self.antibiotics.values
         life = self.model.life.values
@@ -230,13 +287,14 @@ class CreDiseaseModule(Disease):
 
         d_array = np.vstack((antibiotics, life, locations, cre_state)).T
 
-        df = pd.DataFrame(d_array, columns=['Antibiotics', 'Life', 'Location', 'CRE'])
+        df = pd.DataFrame(d_array, columns=["Antibiotics", "Life", "Location", "CRE"])
         df = df[df.Life == LifeState.ALIVE.value]
-        df = df.groupby(by=['Antibiotics', 'Location', 'CRE']).size()
+        df = df.groupby(by=["Antibiotics", "Location", "CRE"]).size()
         self.model.daily_counts[self.model.time] = df
 
     def save_output(self):
         cases = pd.DataFrame(
             self.cases,
-            columns=['Time', 'Unique_ID', 'Location', 'Type', 'Description', 'County'])
-        cases.to_csv(Path(self.model.output_dir, 'CRE_cases.csv'), index=False)
+            columns=["Time", "Unique_ID", "Location", "Type", "Description", "County"],
+        )
+        cases.to_csv(Path(self.model.output_dir, "CRE_cases.csv"), index=False)
