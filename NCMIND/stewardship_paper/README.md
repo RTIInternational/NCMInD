@@ -1,18 +1,16 @@
 ## Run Simulation Scenarios
 
-`docker-compose run -d hai bash -c "python3.6 NCMIND/stewardship_paper/src/scenario_runs.py"`
+### Antibiotic Reduction
 
-#### Commands
+Before you can run antibiotic reduction scenarios, you need to figure out how much to reduce antibiotics by 10% and 20% for NH and STACHs
 
-Assess is we did drop antibiotics by 10, 20, and 30%
-`docker-compose run  hai bash -c "python3.6 NCMIND/stewardship_paper/src/antibiotic_analysis.py"`
+Run the following:
+```docker-compose run -d hai bash -c "python3.6 NCMIND/stewardship_paper/src/lower_antibiotics.py"```
 
-Grab the files:
-`scp krjones@baldur.rtp.rti.org:/home/krjones/cdc-hai/NCMIND/stewardship_paper/scenario_output_aggregated.csv .`
+This will create enough output for you to create a trendline to determine how much to reduce antibiotics daily rates by. Review "NCMIND/stewardship_paper/output/percent_drop.csv". The trendline can be calculated in excel by making a scatterplot plot and then viewing the trendline. 
 
-`scp krjones@baldur.rtp.rti.org:/home/krjones/cdc-hai/NCMIND/stewardship_paper/scenario_output.csv .`
+This has already been completed and incorporated into the scenarios.
 
-`scp krjones@baldur.rtp.rti.org:/home/krjones/cdc-hai/NCMIND/stewardship_paper/scenario_means.csv .`
 
-`scp krjones@baldur.rtp.rti.org:/home/krjones/cdc-hai/NCMIND/stewardship_paper/antibiotics_results.csv .`
-
+### Complete the runs
+`docker-compose run -d hai bash -c "python3.6 NCMIND/stewardship_paper/src/scenario_runs.py --num_agents=5000000 --runs_per=20"`

@@ -1,419 +1,228 @@
 
 import pandas as pd
-import argparse
-from pathlib import Path
-import copy
-import numpy as np
-pd.set_option('mode.chained_assignment', None)
+
+from src.misc_functions import age_dictionary
 
 
-def clean_df(ddf, set_index=True):
+def clean_df(temp_df: pd.DataFrame) -> pd.DataFrame:
     """ Correct demographic variables to be consistent. Fix column names, and if needed, rename hospitals accordingly
-
     Parameters
     ----------
-    ddf : pandas DataFrame
+    temp_df : pandas DataFrame
         A raw DataFrame that needs cleaning
-    set_index : bool
-        Create a multiindex on the DataFrame, or not
-
     Returns
     -------
     daily_counts : DataFrame
         A DataFrame of the daily counts (by state) for all agents
     """
 
-    sex_dictionary = {"M": 1, "F": 2}
-    race_dictionary = {"White": 1, "Black": 2, "Other": 3}
-    age_dictionary = {"L50": 0, "5064": 1, "G65": 2}
+    temp_df = temp_df.replace({"Age_Group": age_dictionary})
 
-    ddf = ddf.replace({"Sex": sex_dictionary, "Race": race_dictionary, "Age Group": age_dictionary})
-
-    # --- Rename columns, set index, drop columns
-    ddf = ddf.rename(columns={'Age Group': 'Age'})
-    # --- Rename hospitals
-    ddf = ddf.rename(columns=names_dict)
-
-    # ----- Set index and drop columns
-    if set_index:
-        index_ddf = ddf.set_index(['County_Code', 'Sex', 'Age', 'Race'])
-        index_ddf = index_ddf.drop(['From', 'County'], axis=1)
-        return index_ddf.sort_index()
-    else:
-        return ddf
+    return temp_df.rename(columns={'Age_Group': 'Age'})
 
 
-def clean_community(data_dir='NCMIND/data'):
+def make_community_transitions():
     """ Clean the community transition file
-
-    Parameters
-    ----------
-    data_dir : str
-        Directory containing raw data from the statistics team
-
     """
-
-    # ----- Generate Directory
-    Path.cwd().joinpath(data_dir, 'raw/location_transitions/').mkdir(exist_ok=True)
-    scenario_dir = Path.cwd().joinpath(data_dir, 'raw/location_transitions/clean_location_transitions')
-    scenario_dir.mkdir(exist_ok=True)
-
-    # ----- Load data and remove duplicates
-    df = pd.read_csv(Path(data_dir, 'raw/location_transitions/Community.csv'))
-    df = df.drop_duplicates()
-    index_df = clean_df(df)
-
-    # ----- Update Probabilities
-    final_data = []
-    for co in index_df.index.get_level_values('County_Code').unique():
-        for sex in index_df.index.get_level_values('Sex').unique():
-            for age in index_df.index.get_level_values('Age').unique():
-                for race in index_df.index.get_level_values('Race').unique():
-                    d = index_df.loc[co, sex, age, race]
-
-                    # ----- Convert probabilities
-                    row = [co, sex, age, race]
-                    # Probability of leaving home
-                    prob_of_movement = 1 - d[d['To'] == 'Home']['Transition Probability'].values[0]
-                    row.append(prob_of_movement)
-
-                    if prob_of_movement == 0:
-                        hp = [float(0)] * 13
-                    else:
-                        # Probability of UNC hospitals
-                        hp = d[d['To'] == 'UNC'].values[0][1:]
-                        if hp[0] != 0:
-                            hp = hp[1:] * hp[0] / prob_of_movement
-                            hp = hp.tolist()
-                        else:
-                            hp = [float(0)] * 10
-
-                        # Add probability of Other Hospital
-                        s_tach =\
-                            d[d['To'] == 'Non-UNC']['Transition Probability'].values[0] / prob_of_movement
-                        l_tach =\
-                            d[d['To'] == 'LT']['Transition Probability'].values[0] / prob_of_movement
-                        nh =\
-                            d[d['To'] == 'NH']['Transition Probability'].values[0] / prob_of_movement
-
-                        hp = hp + [s_tach] + [l_tach] + [nh]
-
-                        if sum(hp) != 0:
-                            hp = [float(i) / sum(hp) for i in list(hp)]
-
-                    row = row + hp
-                    final_data.append(row)
-
-    fd = pd.DataFrame(final_data)
-    fd.columns = ['County_Code', 'Sex', 'Age', 'Race', 'probability'] + names
-
-    d = Path("raw/location_transitions/clean_location_transitions/")
-    fd.to_csv(Path(data_dir, d, 'community_transitions.csv'), index=False)
-    fd.to_csv(Path(data_dir, 'input/transitions/community_transitions.csv'), index=False)
+    temp_df = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name='Community')
+    index_temp_df = clean_df(temp_df)
+    community = index_temp_df[['County_Code', 'Age', 'Probability', 'COMMUNITY', 'UNC', 'LARGE', 'SMALL', 'LT', 'NH']]
+    # Normalize
+    cols = ['COMMUNITY', 'UNC', 'LARGE', 'SMALL', 'LT', 'NH']
+    temp = community[cols].sum(axis=1)
+    for column in cols:
+        community[column] = community[column] / temp
+ 
+    community.to_csv("NCMIND/data/input/community_transitions.csv", index=False)
 
 
-# ----------------------------------------------------------------------------------------------------------------------
-# ----- x to ... -------------------------------------------------------------------------------------------------------
-def clean_x(data_dir='NCMIND/data', x="UNC"):
-    """ Clean the UNC or Non-UNC Transition files
-
-    Parameters
-    ----------
-    data_dir : str
-        Directory containing raw data from the statistics team
-    x : str
-        One of 'UNC', 'Non-UNC
+def make_location_transitions():
+    """ Clean and combine all of the location transitions
     """
+    proportions = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name="Proportions")
+    to_unc = proportions[proportions.Parameter == 'non-UNC to UNC inflated'].Proportion.values[0]
+    unc_to_unc = proportions[proportions.Parameter == '% UNC that move to UNC'].Proportion.values[0]
+    large_to_large = proportions[proportions.Parameter == 'Large to Large'].Proportion.values[0]
+    small_to_large = proportions[proportions.Parameter == 'Small to Large'].Proportion.values[0]
+    nh_st_nh = proportions[proportions.Parameter == 'NH to ST to NH'].Proportion.values[0]
 
-    # ----- Load data and remove duplicates
-    df = pd.read_csv(data_dir + '/raw/location_transitions/' + x + '.csv')
-    df = df.drop_duplicates()
+    # ----- Large
+    large = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name="Large")
+    large = large.drop(['Total'], axis='columns')
+    large = large.set_index('Category').T
+    l_nh = proportions[proportions.Parameter == 'NH to Large ST'].Proportion.values[0]
+    large = calculate_hospital_movement(large, to_unc=to_unc, to_large=large_to_large, from_nh=l_nh, nh_st_nh=nh_st_nh)
+    large = clean_df(large)
 
-    index_df = clean_df(df)
+    # ----- Small
+    s = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name="Small")
+    s = s.drop(['Total'], axis='columns')
+    s = s.set_index('Category').T
+    s_nh = proportions[proportions.Parameter == 'NH to Small ST'].Proportion.values[0]
+    small = calculate_hospital_movement(s, to_unc=to_unc, to_large=small_to_large, from_nh=s_nh, nh_st_nh=nh_st_nh)
+    small = clean_df(small)
 
-    # ----- Update Probabilities
-    final_data = []
-    for co in index_df.index.get_level_values('County_Code').unique():
-        for sex in index_df.index.get_level_values('Sex').unique():
-            for age in index_df.index.get_level_values('Age').unique():
-                for race in index_df.index.get_level_values('Race').unique():
-                    d = index_df.loc[co, sex, age, race]
+    # ----- UNC
+    unc_df = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name="unc-Data")
+    unc_df = unc_df.drop(['Total'], axis='columns')
+    unc_df = unc_df.set_index('Category').T
+    unc_nh = proportions[proportions.Parameter == 'NH to UNC'].Proportion.values[0]
+    unc = calculate_hospital_movement(unc_df, to_unc=unc_to_unc, to_large=small_to_large,\
+        from_nh=unc_nh, nh_st_nh=nh_st_nh)
+    unc = clean_df(unc)
 
-                    # ----- Convert Probabilities
-                    row = [co, sex, age, race]
-                    home = d[d['To'] == 'Home']['Transition Probability'].values[0]
-                    if x == "UNC":
-                        hospital_number = d.shape[1] - 2
-                        unc = [d[d['To'] == 'UNC']['Transition Probability'][0] * 1/hospital_number] * hospital_number
-                    else:
-                        unc = d[d['To'] == 'UNC']['Transition Probability'][0] * d[d['To'] == 'UNC'].values[0][2:]
-                    nh = d[d['To'] == 'NH']['Transition Probability'].values[0]
-                    l_tach = d[d['To'] == 'LT']['Transition Probability'].values[0]
-                    s_tach = d[d['To'] == 'Non-UNC']['Transition Probability'].values[0]
+    temp_df = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name='NH')
+    index_temp_df = clean_df(temp_df)
+    nh = index_temp_df[unc.columns]
 
-                    all_prob = [home] + list(unc) + [s_tach] + [l_tach] + [nh]
+    temp_df = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name='LT')
+    index_temp_df = clean_df(temp_df)
+    lt = index_temp_df[unc.columns]
 
-                    # --- Make sure this sums to 1
-                    if round(sum(all_prob), 8) != 1:
-                        if sum(all_prob) != 0:
-                            all_prob = [float(i) / sum(all_prob) for i in list(all_prob)]
+    temp_df = pd.read_csv("NCMIND/data/input/community_transitions.csv")
+    temp_df['Facility'] = "COMMUNITY"
+    community = temp_df[unc.columns]
 
-                    row = row + all_prob
-                    final_data.append(row)
+    location_transitions = pd.concat([unc, large, small, nh, lt, community])
 
-    df = pd.DataFrame(final_data)
-    if x == 'NH':
-        df = df.fillna(0)
-    df.columns = ['County_Code', 'Sex', 'Age', 'Race'] + [community] + names
-
-    df.to_csv(data_dir + '/raw/location_transitions/clean_location_transitions/' + x + '_transitions.csv', index=False)
+    location_transitions.to_csv("NCMIND/data/input/location_transitions.csv", index=False)
 
 
-def clean_unc_to_unc(data_dir='NCMIND/data'):
+def make_unc_to_unc_discharges():
     """ Clean the UNC to UNC Hospital File
+    """
+    # ----- Load data and remove extra columns
+    temp_df = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name='unc-D')
+    temp_df = temp_df.drop(['Total', 'County'], axis=1)
+    columns = [item for item in temp_df.columns if 'UNC' in item]
+    column_sum = temp_df[columns].sum(axis=1)
+    for column in columns:
+        temp_df[column] = temp_df[column] / column_sum
+    temp_df = temp_df.fillna(0)
+    temp_df.to_csv("NCMIND/data/input/unc_to_unc_transitions.csv", index=False)
+
+
+def make_nonUNC_discharges():
+    """ Clean both the large, and small nonUNC files
+    """
+    def clean_df2(temp_df):
+        temp_df = temp_df.drop(['County', 'Total'], axis=1)
+        columns = [item for item in temp_df.columns if 'nonUNC' in item]
+        column_sum = temp_df[columns].sum(axis=1)
+        for column in columns:
+            temp_df[column] = temp_df[column] / column_sum
+        return temp_df.fillna(0)
+
+    temp_df = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name='Large-D')
+    clean_df2(temp_df).to_csv("NCMIND/data/input/large_discharge_transitions.csv", index=False)
+    temp_df = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name='Small-D')
+    clean_df2(temp_df).to_csv("NCMIND/data/input/small_discharge_transitions.csv", index=False)
+
+
+def calculate_hospital_movement(df: pd.DataFrame, to_unc: float, to_large: float, from_nh: float,
+    nh_st_nh: float = .8) -> pd.DataFrame:
+    """ Using individual hospital level data, calculate the transition probabilities
 
     Parameters
     ----------
-    data_dir : str
-        Directory containing raw data from the statistics team
+    to_unc : proportion of patients who go to a UNC hospital from this facility
+    to_large : proportion of STACH discharges that go to a Large hospital, as opposed to a small one
+    from_nh : the number of patients who go to this type of facility each year from a NH
+    nh_st_nh : Proportion of patients who go to an STACH from a NH who return to the NH
     """
+    discharges = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name="unc-D")
 
-    # ----- Load data and remove duplicates
-    df = pd.read_csv(Path(data_dir, 'raw/location_transitions/UNC-to-UNC.csv'))
+    community_columns = [
+        'Patient Disposition Home, self, or outpatient care',
+        'Patient Disposition Discharged, transferred to psychiatric facility', 'Patient Disposition Hospice',
+        'Patient Disposition Left against medical advice', 'Patient Disposition Court/Law Enforcement',
+        'Patient Disposition Expired', 'Patient Disposition Other/Unknown']
+    locations = ['Community', 'ST', 'LT', 'NH']
+    ages = ['L50', '50-64', '65+']
 
-    # --- Rename hospitals
-    df = df.rename(columns=names_dict)
+    # ----- Calculate age groups
+    df['L50'] = df['Age Group Less than 1 Year'] + df['Age Group 1 - 17 years'] + df['Age Group 18 - 44 years'] +\
+        df['Age Group 45 - 64 years'] * .25
+    df['50-64'] = df['Age Group 45 - 64 years'] * .75
+    df['65+'] = df['Age Group 65 - 84 years'] + df['Age Group 85 or more years']
+    df['L50%'] = df['L50'] / (df['L50'] + df['50-64'] + df['65+'])
+    df['50-64%'] = df['50-64'] / (df['L50'] + df['50-64'] + df['65+'])
+    df['65+%'] = df['65+'] / (df['L50'] + df['50-64'] + df['65+'])
 
-    df['Hospital'] = df['Hospital'].str.upper()
-    df.loc[df['Hospital'] == 'HIGH POINT', 'Hospital'] = 'HIGHPOINT'
-    df.loc[df['Hospital'] == 'UNC-CH', 'Hospital'] = 'UNC_CH'
+    # ----- Group Dispositions
+    df['Community'] = df[community_columns].sum(axis=1)
+    df['ST'] = df['Patient Disposition Discharged, transferred to acute facility'] +\
+        df['Patient Disposition Discharged, transferred']
+    df['LT'] = df['Patient Disposition Discharged, transferred to long term acute care facility (LTAC)']
+    df['NH'] = df['Patient Disposition Discharged, transferred to facility that provides nursing, custodial, or supportive care']
 
-    df = df.drop(['County'], axis=1)
+    # ----- In the model, 80% of NH to ST patients are forced to return to the NH. We correct this here:
+    # TODO: .7 is used to reduce this further. We still don't have enough NH to hospital movement
+    df['nh_to_hospital'] = [item / df.NH.sum() * from_nh * .7 for item in df.NH]
+    # --- Remove people going to the NH (because the model already forces people)
+    df['NH'] = df.apply(lambda x: max(0, x.NH - x.nh_to_hospital * nh_st_nh), axis=1)
 
-    df.to_csv(Path(data_dir, "raw/location_transitions/clean_location_transitions/UNC-to-UNC.csv"), index=False)
+    # ----- Calculate % Movement by Age (note NH cannot be <65 years old)
+    for location in locations:
+        for age in ages:
+            # We need more older folks to go to LTs (so we can have more NH movement)
+            if location == 'LT':
+                if age in ['L50', '50-64']:
+                    df[location + "_" + age] = df[age + "%"] * .8 * df[location]
+                else:
+                    df[location + "_" + age] = df[age + "%"] * 1.35 * df[location]
+            else:
+                df[location + "_" + age] = df[age + "%"] * df[location]
+            # ----- Add NH to Community for Young agents
+            if (location == 'Community') & (age != '65+'):
+                df[location + "_" + age] += df[age + "%"] * df['NH']
+            # ----- Remove NH for Young Patients
+            if (location == 'NH'):
+                if age != '65+':
+                    df[location + "_" + age] = 0
+                else:
+                    df[location + "_" + age] = df[location]
 
+    # ----- Calculate Percentages
+    pairs = dict()
+    for hospital, row in df.iterrows():
+        for age in ages:
+            values = row.loc[[item + "_" + age for item in locations]]
+            pairs[hospital + "_" + age] = [item / values.sum() for item in values]
+    pairs_df = pd.DataFrame(pairs).T
 
-def clean_initial_population(data_dir='NCMIND/data'):
-    """ Clean the initial population files
+    # ----- Find the row for each combination
+    all_rows = []
+    for hospital in df.index:
+        for county_code in discharges.County_Code.values:
+            for age in ages:
+                values = pairs_df.loc[hospital + "_" + age]
+                row = [county_code, age, hospital]
+                # Find Community
+                row.append(values[0])
+                # Find Hospitals
+                if discharges[discharges.County_Code == county_code].Total.values[0] > 0:
+                    row.append(values[1] * to_unc)
+                    row.append(values[1] * (1 - to_unc) * to_large)
+                    row.append(values[1] * (1 - to_unc) * (1 - to_large))
+                else:
+                    row.append(0)
+                    row.append(values[1] * to_large)
+                    row.append(values[1] * (1 - to_large))
+                # LT and NH
+                row.append(values[2])
+                row.append(values[3])
+                all_rows.append(row)
 
-    Parameters
-    ----------
-    data_dir : str
-        Directory containing raw data from the statistics team
-    """
-    cc = pd.read_csv(Path(data_dir, '../../base_files/county_codes.csv'))
-
-    # ----- UNC Hospitals  -----
-    df = pd.read_csv(Path(data_dir, 'raw/initial_population/Initial_UNC_Population.csv'))
-    df = df.drop_duplicates()
-    df = clean_df(df, set_index=False)
-    # --- Add County Code
-    # co = df['County'].values
-    # df.insert(loc=1, column='County_Code',
-    #           value=[cc[cc['County'].isin([i])]['County_Code'].values[0] for i in co])
-    df.to_csv(Path(data_dir, 'input/initial_population/UNC_initial.csv'), index=False)
-
-    # ----- Non-UNC Hospitals -----
-    df = pd.read_csv(Path(data_dir, 'raw/initial_population/Initial_Non-UNC_Population.csv'))
-    df = df.drop_duplicates()
-    df = clean_df(df, set_index=False)
-    # --- Add County Code
-    co = df['County'].values
-    df.insert(loc=1, column='County_Code',
-              value=[cc[cc['County'].isin([i])]['County_Code'].values[0] for i in co])
-    df.to_csv(Path(data_dir, 'input/initial_population/Non-UNC_initial.csv'), index=False)
-
-    # ----- NH ------
-    df = pd.read_csv(Path(data_dir, 'raw/initial_population/Initial_NH_Population.csv'))
-    df = df.drop_duplicates()
-    df = clean_df(df, set_index=False)
-    # ----- Save as CSV
-    df.to_csv(Path(data_dir, 'input/initial_population/NH_initial.csv'), index=False)
-
-    # ----- LT ------
-    df = pd.read_csv(Path(data_dir, 'raw/initial_population/Initial_LT_Population.csv'))
-    df = df.drop_duplicates()
-    df = clean_df(df, set_index=False)
-    # ----- Save as CSV
-    df.to_csv(Path(data_dir, 'input/initial_population/LT_initial.csv'), index=False)
-
-    # ----- Read in the initial population counts and filter it to only counties in the population
-    # UNC
-    unc_initial = pd.read_csv(Path(data_dir, 'input/initial_population/UNC_initial.csv'))
-    # Non-UNC
-    non_unc_initial = pd.read_csv(Path(data_dir, 'input/initial_population/Non-UNC_initial.csv'))
-    # NH
-    nh_initial = pd.read_csv(Path(data_dir, 'input/initial_population/NH_initial.csv'))
-    # nh_initial.loc[nh_initial['Age'] < 2, 'Patients'] = 0
-    # LT
-    lt_initial = pd.read_csv(Path(data_dir, 'input/initial_population/LT_initial.csv'))
-
-    # Merge Non-UNC and UNC
-    initial = pd.merge(unc_initial, non_unc_initial[['County_Code', 'Age', 'Sex', 'Race', 'Patients']],
-                       on=['County_Code', 'Age', 'Sex', 'Race'], how='outer')
-    initial = initial.rename(columns={"Patients": "ST"})
-    # Merge UNC and NH
-    initial = pd.merge(initial, nh_initial[['County_Code', 'Age', 'Sex', 'Race', 'Patients']],
-                       on=['County_Code', 'Age', 'Sex', 'Race'])
-    initial = initial.rename(columns={"Patients": "NH"})
-    # Merge UNC+NH with LT
-    initial = pd.merge(initial, lt_initial[['County_Code', 'Age', 'Sex', 'Race', 'Patients']],
-                       on=['County_Code', 'Age', 'Sex', 'Race'], how='outer')
-    initial = initial.rename(columns={"Patients": "LT"})
-    initial = initial.fillna(0)
-
-    # ----- Save as CSV
-    initial.to_csv(Path(data_dir, 'input/initial_population/all_initial.csv'), index=False)
-
-
-def make_one_file(data_dir='NCMIND/data'):
-    """ Combine all transition files into one single file
-
-    Parameters
-    ----------
-    data_dir : str
-        Directory containing raw data from the statistics team
-    """
-
-    d = Path("raw/location_transitions/clean_location_transitions/")
-
-    # ----- COMMUNITY
-    c = pd.read_csv(Path(data_dir, d, "community_transitions.csv"))
-    one_file_community = c.drop('probability', axis=1)
-    one_file_community.insert(4, 'COMMUNITY', 0)
-    one_file_community.insert(0, 'From', 'COMMUNITY')
-
-    # ----- Non-UNC
-    one_file_non_unc = pd.read_csv(Path(data_dir, d, "Non-UNC_transitions.csv"))
-    one_file_non_unc.insert(0, 'From', 'ST')
-
-    # ----- LT
-    one_file_lt = pd.read_csv(Path(data_dir, d, "LT_transitions.csv"))
-    one_file_lt.insert(0, 'From', 'LT')
-
-    # ----- NH
-    one_file_nh = pd.read_csv(Path(data_dir, d, "NH_transitions.csv"))
-    one_file_nh.insert(0, 'From', 'NH')
-
-    # ----- UNC to UNC.
-    unc = pd.read_csv(Path(data_dir, d, "UNC_transitions.csv"))
-    one_file_unc = pd.DataFrame()
-    hospital_names = [item for item in names_dict.values() if item != 'County_Code']
-    for hospital in hospital_names:
-        a = copy.copy(unc)
-        a.insert(0, 'From', hospital)
-
-        one_file_unc = one_file_unc.append(a)
-    one_file_unc = one_file_unc.reset_index(drop=True)
-
-    # ----- UNC to UNC File #2
-    unc_10 = pd.read_csv(Path(data_dir, d, "UNC-to-UNC.csv"))
-
-    for index, row in unc_10.iterrows():
-        rows = one_file_unc[(one_file_unc['County_Code'] == row['County_Code']) & (
-            one_file_unc['From'] == row['Hospital'])][hospital_names]
-        total_p = rows.sum(axis=1).values[0]
-        # If the row has values, update the UNC file
-        if row[hospital_names].values.sum() > 0:
-            one_file_unc.loc[rows.index, hospital_names] = row[hospital_names].values * total_p
-        # If the row has no value (UNC to UNC has no data), update file to send people to the community.
-        else:
-            one_file_unc.loc[rows.index, hospital_names] = 0
-            one_file_unc.loc[rows.index, 'COMMUNITY'] += total_p
-
-    one_file = pd.DataFrame()
-    one_file = one_file.append(one_file_community).reset_index(drop=True)
-    one_file = one_file.append(one_file_unc).reset_index(drop=True)
-    one_file = one_file.append(one_file_non_unc).reset_index(drop=True)
-    one_file = one_file.append(one_file_lt).reset_index(drop=True)
-    one_file = one_file.append(one_file_nh).reset_index(drop=True)
-    one_file = one_file.rename(columns={"From": "Location"})
-
-    # ----- Add the demographic index
-    ct = one_file_community
-    ct['Index'] = ct.index
-    ct = ct.set_index(['County_Code', 'Sex', 'Age', 'Race'])
-    id_list = [ct.loc[item.County_Code, item.Sex, item.Age, item.Race]['Index'] for index, item in one_file.iterrows()]
-    one_file['Demographic_ID'] = id_list
-
-    one_file.to_csv(Path(data_dir, "input/transitions/location_transitions.csv"), index=False)
-
-
-def remove_hospitals(hospital_list, df):
-    """ Removes list of hospitals from the location transition file. It will update probabilities accordingly
-
-    Parameters
-    ----------
-    hospital_list : list
-        List of hospital names to remove
-    data_dir : str
-        Directory containing raw data from the statistics team
-
-    Return
-    ------
-    The location transition file with specific hospitals removed.
-    """
-    df = df.copy()
-    hospital_names = [item for item in df.columns if item not in
-                      ['Location', 'County_Code', 'Sex', 'Age', 'Race', 'Demographic_ID', 'COMMUNITY', 'LT', 'NH']]
-
-    df['Sum_Old'] = df[[item for item in df.columns if item in hospital_names]].sum(axis=1)
-    df = df[[item for item in df.columns if item not in hospital_list]]
-    df['Sum_New'] = df[[item for item in df.columns if item in hospital_names]].sum(axis=1)
-    df['Sum_Other'] = df[['COMMUNITY', 'LT', 'NH']].sum(axis=1)
-
-    # If Other and New are both 0, ST needs to be 1
-    df['ST'] = np.where((df['Sum_Other'] == 0) & (df['Sum_New'] == 0), 1, df['ST'])
-
-    df['Sum_New'] = np.where((df['Sum_Other'] == 0) & (df['Sum_New'] == 0), 1, df['Sum_New'])
-    df['Sum_Ratio'] = df['Sum_Old'] / df['Sum_New']
-
-    for column in [item for item in df.columns if item in hospital_names]:
-        df[column] = df[column] * df['Sum_Ratio']
-
-    df = df.drop(['Sum_Old', 'Sum_New', 'Sum_Other', 'Sum_Ratio'], axis=1)
-
-    # Remove the rows mentioning the hospital
-    # df = df.drop(df[df.Location.isin(hospital_list)].index)
-
-    return df
+    df2 = pd.DataFrame(all_rows)
+    df2.columns = ['County_Code', 'Age_Group', 'Facility', 'COMMUNITY', 'UNC', 'LARGE', 'SMALL', 'LT', 'NH']
+    return df2
 
 
 # ----- What to run when the script is called ----- #
 if __name__ == '__main__':
 
-    # These values are hardcoded for our project.
-    names_dict = {
-        'County Code': 'County_Code',
-        'Caldwell': 'CALDWELL',
-        'Chatham': 'CHATHAM',
-        'High Point': 'HIGHPOINT',
-        'Johnston': 'JOHNSTON',
-        'Lenoir': 'LENOIR',
-        'Margaret': 'MARGARET',
-        'Nash': 'NASH',
-        'Rex': 'REX',
-        'UNC-CH': 'UNC_CH',
-        'Wayne': 'WAYNE'
-    }
-
-    names = [item for item in names_dict.values() if item != 'County_Code'] + ['ST', 'LT', 'NH']
-    community = 'COMMUNITY'
-
-    parser = argparse.ArgumentParser(description='None')
-
-    parser.add_argument(
-        'experiment_dir',
-        help='directory containing the experiment'
-    )
-    args = parser.parse_args()
-
-    clean_community(args.experiment_dir)
-    clean_x(args.experiment_dir, x='UNC')
-    clean_x(args.experiment_dir, x='Non-UNC')
-    clean_x(args.experiment_dir, x='LT')
-    clean_x(args.experiment_dir, x='NH')
-    clean_unc_to_unc(args.experiment_dir)
-    clean_initial_population(args.experiment_dir)
-
-    make_one_file(args.experiment_dir)
+    make_community_transitions()
+    make_location_transitions()
+    make_unc_to_unc_discharges()
+    make_nonUNC_discharges()

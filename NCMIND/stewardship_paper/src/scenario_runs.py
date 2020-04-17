@@ -8,7 +8,7 @@ import numpy as np
 from copy import deepcopy
 from pathlib import Path
 
-from NCMIND.src.analyze import Analyze
+from NCMInD.src.analyze import Analyze
 from src.ldm import Ldm
 from src.parameters import update_parameters_file
 
@@ -113,7 +113,8 @@ def reduce_unc_antibiotics(p: dict, reduction: float) -> dict:
     for item in p['location']['facilities']:
         if item[0:4] == 'UNC_':
             p['location']['facilities'][item]['antibiotics'] =\
-                p['location']['facilities'][item]['antibiotics'] * (1 - reduction)
+                p['location']['facilities'][item]['antibiotics'] * \
+                (1 - reduction)
     return p
 
 
@@ -152,9 +153,9 @@ if __name__ == "__main__":
     print(args)
 
     experiment_name = "NCMIND"
-    base_scenario = "stewardship_paper"
+    base_scenario = "stewardship_paper/"
     base_scenario_path = Path(experiment_name, base_scenario)
-    with open("NCMIND/cdi_calibration/run_1/parameters.json") as file:
+    with open("NCMIND/cdi_demo/parameters.json") as file:
         params = json.load(file)
     params['base']['limit_pop'] = args.num_agents
     runs_per_scenario = args.runs_per
@@ -174,7 +175,8 @@ if __name__ == "__main__":
     # Review readme to see how formulas were calculated.
     lower = dict()
     # --- NHs
-    lower['NH'], lower['HOSPITAL'], lower['COMMUNITY'], lower['LTACH'] = dict(), dict(), dict(), dict()
+    lower['NH'], lower['HOSPITAL'], lower['COMMUNITY'], lower['LTACH'] = dict(
+    ), dict(), dict(), dict()
     lower['NH'][10] = (.1 - .0457) / .5366
     lower['NH'][20] = (.2 - .0457) / .5366
     lower['NH'][30] = (.3 - .0457) / .5366
@@ -250,7 +252,8 @@ if __name__ == "__main__":
         reduction = lower['COMMUNITY'][value]
         for item in p['location']['facilities']['COMMUNITY']['age']:
             p['location']['facilities']['COMMUNITY']['age'][item] =\
-                p['location']['facilities']['COMMUNITY']['age'][item] * (1 - reduction)
+                p['location']['facilities']['COMMUNITY']['age'][item] * \
+                (1 - reduction)
 
         multi_process_runs(runs_per_scenario, p, experiment_name, scenario)
 
@@ -273,7 +276,8 @@ if __name__ == "__main__":
         r2 = lower['COMMUNITY'][value]
         for item in p['location']['facilities']['COMMUNITY']['age']:
             p['location']['facilities']['COMMUNITY']['age'][item] =\
-                p['location']['facilities']['COMMUNITY']['age'][item] * (1 - r2)
+                p['location']['facilities']['COMMUNITY']['age'][item] * \
+                (1 - r2)
         # LTACHs
         r3 = lower['LTACH'][value]
         p['location']['facilities']['LT']['antibiotics'] =\
@@ -359,7 +363,8 @@ if __name__ == "__main__":
             for run_y in os.listdir(Path(base_scenario_path, a_scenario)):
                 if 'run' in run_y:
                     run_list.append(run_y)
-            df_temp = multi_process_analysis(experiment_name, a_scenario, run_list)
+            df_temp = multi_process_analysis(
+                experiment_name, a_scenario, run_list)
 
             if df.shape[0] > 0:
                 df = df.append(df_temp)
@@ -368,10 +373,11 @@ if __name__ == "__main__":
 
     df.Scenario = [item.replace(base_scenario, "") for item in df.Scenario]
 
-    df.to_csv(Path(base_scenario_path, "output", "scenario_outputs.csv"), index=False)
+    df.to_csv(Path(base_scenario_path, "output",
+                   "scenario_outputs.csv"), index=False)
 
     # ----- Find the run id
-    cutoffs = df.Scenario.str.find("__run_") + 6 
+    cutoffs = df.Scenario.str.find("__run_") + 6
     df['run_id'] = [item[cutoffs[i]:] for i, item in enumerate(df.Scenario)]
     df['run_id'] = df['run_id'].astype(int)
 
@@ -382,7 +388,8 @@ if __name__ == "__main__":
 
     # --- Create scenario DFs
     scenario_dfs = dict()
-    scenarios = list(set([item[0:item.find("__")] for item in df.Scenario.unique()]))
+    scenarios = list(set([item[0:item.find("__")]
+                          for item in df.Scenario.unique()]))
     scenarios.sort()
     ts = scenarios[0:-1]
     ts.sort(key=lambda x: int(x[2]))
@@ -404,7 +411,8 @@ if __name__ == "__main__":
         final_df[scenario + '_\u03BC'] = temp_df.mean()
         final_df[scenario + '_pc_\u03BC'] = percent_change.mean()
         final_df[scenario + '_pc_\u03C3'] = percent_change.std()
-        final_df[scenario + '_pc_SE'] = final_df[scenario + '_pc_\u03C3'] / np.sqrt(percent_change.shape[0])
+        final_df[scenario + '_pc_SE'] = final_df[scenario +
+                                                 '_pc_\u03C3'] / np.sqrt(percent_change.shape[0])
 
     final_df.to_excel(Path(base_scenario_path, "output", "results.xlsx"))
 
@@ -417,8 +425,12 @@ if __name__ == "__main__":
 
         aggregated_df[scenario + '_means'] = means
         aggregated_df[scenario + '_sds'] = sds
-        aggregated_df[scenario + '_range'] = sds.apply(lambda x: 1.96 * x / np.sqrt(percent_change.shape[0]))
-        aggregated_df[scenario + '_lower'] = means - aggregated_df[scenario + '_range']
-        aggregated_df[scenario + '_upper'] = means + aggregated_df[scenario + '_range']
+        aggregated_df[scenario + '_range'] = sds.apply(
+            lambda x: 1.96 * x / np.sqrt(percent_change.shape[0]))
+        aggregated_df[scenario + '_lower'] = means - \
+            aggregated_df[scenario + '_range']
+        aggregated_df[scenario + '_upper'] = means + \
+            aggregated_df[scenario + '_range']
 
-    aggregated_df.to_csv(Path(base_scenario_path, "output", "scenario_output_means.csv"))
+    aggregated_df.to_csv(
+        Path(base_scenario_path, "output", "scenario_output_means.csv"))

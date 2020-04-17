@@ -2,8 +2,8 @@
 **/model_output/
 hai_env/
 *.png
-NCMIND/location_calibration/runs_*
-syn_pop_NC*
+temp.py
+.vscode/
 
 # Typical Ignores
 __pycache__/
