@@ -1,50 +1,39 @@
 
 import pandas as pd
 import argparse as arg
-from pathlib import Path
 import numpy as np
+import re
+
+from src.location import Locations
+from src.misc_functions import create_cdf, random_selection
 
 
-def rule_of_x(df, x=3):
+def rule_of_3(df: pd.DataFrame) -> pd.DataFrame:
     """
-    The rule of x states that if a demographic is missing from our population, adding "x" individuals of that
+    The rule of 3 states that if a demographic is missing from our population, adding "3" individuals of that
     demographic will have a minimal impact on our results
-
-    Parameters
-    ----------
-    df : pandas DataFrame
-        a dataframe containing the full synthetic population
-    x : int
-        integer representing the minimum number of agents needed at each demographic
-
-    Returns
-    -------
-    df : the synthetic population with new agents appended
     """
-
-    gb = df.groupby(['County_Code', 'Sex', 'Age', 'Race'])
+    x = 3
+    gb = df.groupby(['County_Code', 'Age'])
     gb = pd.DataFrame(gb.size())
     gb = gb.reset_index()
 
-    # ----- Go through each combination of county, sex, age, and race. Create a list containing the demographic
-    #       combination and the number of agents that are needed.
+    # ----- Go through each combination of county and age. Create a list containing the demographic
+    # combination and the number of agents that are needed.
     agents_needed = []
-    for county in range(1, 201, 2):
-        for sex in [1, 2]:
-            for age_group in [0, 1, 2]:
-                for race in [1, 2, 3]:
-                    temp_gb =\
-                        gb[(gb.County_Code == county) & (gb.Sex == sex) & (gb.Age == age_group) & (gb.Race == race)]
-                    if temp_gb.shape[0] == 0:
-                        agents_needed.append([county, sex, age_group, race, x])
-                    elif temp_gb[0].values[0] < x:
-                        agents_needed.append([county, sex, age_group, race, x - temp_gb[0].values[0]])
+    for county in df.County_Code.unique():
+        for age_group in df.Age.unique():
+            temp_gb =\
+                gb[(gb.County_Code == county) & (gb.Age == age_group)]
+            if temp_gb.shape[0] == 0:
+                agents_needed.append([county, age_group, ])
+            elif temp_gb[0].values[0] < x:
+                agents_needed.append([county, age_group, x - temp_gb[0].values[0]])
 
     # ----- Add agents to the synthetic population based on which demographics were missing
     new_df = pd.DataFrame()
+    print("The rule of 3 will now alter: {} demographic combinations".format(len(agents_needed)))
     for row in agents_needed:
-        # ----- Find a random latitude/longitude for that county
-        df_temp = df[df['County_Code'] == row[0]].sample(row[4]).reset_index()
         # ----- row[4] contains the number of agents to append.
         for i in range(row[4]):
             # ----- Assign a random age in years
@@ -55,7 +44,7 @@ def rule_of_x(df, x=3):
             else:
                 age_years = 70
             # --- put the row together
-            values = row[0:4] + [age_years] + [df_temp.loc[i].latitude] + [df_temp.loc[i].longitude]
+            values = row[0:4] + [age_years] + row[5:]
             values = pd.DataFrame(values).T
             values.columns = df.columns
             new_df = new_df.append(values, ignore_index=True)
@@ -63,146 +52,136 @@ def rule_of_x(df, x=3):
     return df.append(new_df, ignore_index=True)
 
 
-def print_summary(exp_dir, df):
-    """ Statisticians need a summary of the final synthetic population. This will group people by
-        County, Sex, Age, and Race and output a CSV of the summary.
-
-    Parameters
-    ----------
-    exp_dir : str
-        The directory of the experiment
-    df : pandas Dataframe
-        The final synthetic population
-
-    Returns
-    -------
-    gb : pandas Dataframe
-        Group totals by County_Code, Sex, Age, Race
+def select_facility(hospital: dict, discharge_data: pd.DataFrame, county_age_dict: dict, fill_percent=.7):
+    """ Append the number of hospital patients required for a given county/age dictionary.
+        This will help fill the beds with agents
     """
+    hospital_id = hospital['ID']
+    rows = discharge_data[discharge_data[hospital_id] > 0].copy()
+    rows.loc[:, 'Percentage'] = rows[hospital_id] / rows[hospital_id].sum()
 
-    gb = df.groupby(['County_Code', 'Sex', 'Age', 'Race'])
-    gb = pd.DataFrame(gb.size())
-    gb = gb.reset_index()
-
-    # ----- Must reverse the values to match what statistician would have
-    race = dict()
-    race[1] = 'White'
-    race[2] = 'Black'
-    race[3] = 'Other'
-
-    age = dict()
-    age[0] = 'L50'
-    age[1] = '5064'
-    age[2] = 'G65'
-
-    sex = dict()
-    sex[1] = 'M'
-    sex[2] = 'F'
-
-    # ----- Reverse values
-    gb = gb.rename(columns={'Age': 'Age Group', 0: 'Count'})
-    gb = gb.replace({'Age Group': age, 'Sex': sex, 'Race': race})
-
-    gb.to_csv(Path(exp_dir, "data/synthetic_population/synthetic_population_summary.csv"), index=False)
+    for bed in range(0, int(hospital['beds'] * fill_percent)):
+        p = create_cdf(rows.Percentage.values)
+        # --- Randomly select a county based on the percentage
+        county = random_selection(np.random.rand(1, 1)[0], p, rows.County_Code.values)
+        # --- Randomly select an age based on 40% <50, 20% 50-65, and 40% 65+
+        age = random_selection(np.random.rand(1, 1)[0], [.4, .6, 1.0], np.array([0, 1, 2]))
+        county_age_dict[(county, age)].append(hospital['int'])
 
 
-def initialize_syn_pop(exp_dir, df, print_warnings=True):
+def initialize_syn_pop(df: pd.DataFrame) -> pd.DataFrame:
+    """ Initialize the synthetic population with starting locations
     """
+    print("Step 1/5: Setting Indices")
+    df['p_id'] = range(df.shape[0])
+    start_locations = np.zeros(len(df))
+    population = df.set_index(['County_Code', 'Age']).sort_index()
+    locations = Locations("NCMIND")
 
-    Parameters
-    ----------
-    exp_dir : str
-        The directory of the experiment
-    df : pandas DataFrame
-        The final synthetic population
-    print_warnings : Boolean
-        True to print messages for each demographic combination that did not have enough people to initialize correctly
+    # ----- Assigning STACH Agents -------------------------------------------------------------------------------------
+    print("Step 2/5: Reading Discharge data")
+    large_dis = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name="Large-D")
+    small_dis = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name="Small-D")
+    unc_dis = pd.read_excel("NCMIND/data/six_by_six.xlsx", sheet_name="unc-D")
 
-    Returns
-    -------
-    df : pandas DataFrame
-        The original input DataFrame with additional initialization variables
-    """
+    print("Step 3/5: Assigning Initial Agents for STACHs")
+    county_age = dict()
+    for county in df.County_Code.unique():
+        for age in df.Age.unique():
+            county_age[(county, age)] = []
 
-    population = df.set_index(['County_Code', 'Sex', 'Age', 'Race']).sort_index()
+    # ----- Large Hospitals
+    for large_int in locations.large_ints:
+        h = locations.ints[large_int]
+        select_facility(h, large_dis, county_age)
+    # ----- Small Hospitals
+    for small_int in locations.small_ints:
+        h = locations.ints[small_int]
+        select_facility(h, small_dis, county_age)
+    # ----- UNC Hospitals
+    for unc_int in locations.unc_ints:
+        h = locations.ints[unc_int]
+        select_facility(h, unc_dis, county_age)
 
-    # ----- Set default values for start location, length of stay, and for persons unique id
-    community = 'COMMUNITY'
-    population['Start_Location'] = community
-    population['p_id'] = range(population.shape[0])
+    # ----- Assign starting locations for all STACH beds, based on county and age.
+    for key, value in county_age.items():
+        pop = population.loc[key]
+        ids = pop.sample(int(min(pop.shape[0], len(value)))).p_id
+        for _, x_id in enumerate(ids):
+            start_locations[x_id] = value[_]
 
-    # ----- Since the p_id in order - we can use the p_id as an index for the numpy array
-    population2 = population.reset_index()
-    column_names = population2.columns
-    start_location_index = list(column_names).index('Start_Location')
-    population2 = population2.values
+    # ----- Switch the index to logrec
+    population = (
+        population
+        .reset_index()
+        .set_index('logrecno')
+        .sort_index()
+    )
+    # ----- Assigning Nursing Home and LTACH Agents --------------------------------------------------------------------
+    # ----- Logrec to NH/LT Pairings
+    logrecs = pd.read_csv("NCMIND/data/input/logrecnos.csv")
+    logrecs.index = logrecs.logrecno
 
-    # ----- Read initial population
-    initial = pd.read_csv(Path(exp_dir, 'data/input/initial_population/all_initial.csv'))
+    # ----- Loop through each facility and assign logrecs to NH. Assume 70% capacity for all
+    print("Step 4/5: Assigning bed counts to logrecnos for NH/LTs")
+    for _, item in locations.ints.items():
+        # ----- LTACHs
+        if item['category'] == 'LT':
+            use_logrecs = list(logrecs[logrecs.LT == item['ID']].logrecno.values)
+            new_column = pd.Series(np.random.choice(use_logrecs, round(item['beds'] * .7))).value_counts()
+            logrecs[item['ID']] = new_column
+        # ----- NHs
+        if item['category'] == 'NH':
+            use_logrecs = list(logrecs[logrecs.NH == item['ID']].logrecno.values)
+            if len(use_logrecs) > 0:
+                new_column = pd.Series(np.random.choice(use_logrecs, round(item['beds'] * .7))).value_counts()
+                logrecs[item['ID']] = new_column
+            else:
+                print("There are no geographys for NH: {}".format(item['ID']))
 
-    # ----- Define the Possible Locations
-    locations = [item for item in initial.columns if item not in ['County', 'County_Code', 'Sex', 'Age', 'Race']]
+    logrecs = logrecs[[item for item in logrecs.columns if len(re.findall(r"_\d", item)) > 0]]
+    logrecs = logrecs.fillna(0)
 
-    # ----- Go through each combination of county code, sex, age, and race and assign people to hospitals
-    failed_count = 0
-    # ----- Go through each combination of county code, sex, age, and race and assign people to hospitals
-    for index, row in initial.iterrows():
-        total_count = int(sum(row[locations]))
+    # ----- Loop through each tract and randomly select people for the NH or LTACH
+    count = 0
+    print("Step 5/5: Randomly assigning agents from each logrec to NHs/LTACHs.")
+    for _, logrec in logrecs.iterrows():
+        count = count + 1
+        if count % 500 == 0:
+            print("{:.0%} done with logrec assignments.".format(count / logrecs.shape[0]))
+        logrec = logrec[logrec > 0]
 
-        if total_count > 0:
-            try:
-                pop = population.loc[row.County_Code, row.Sex, row.Age, row.Race]
-
-                if total_count > pop.shape[0]:
-                    if len(pop.shape) == 1:
-                        number = 1
-                    else:
-                        number = pop.shape[0]
-                    print('Trying to assign %s people. Only %s agent(s) fit this criteria' % (total_count, number))
-                    print([row.County_Code, row.Sex, row.Age, row.Race])
-                    pop = pop[pop['Start_Location'] == community].sample()
+        if len(logrec) > 0:
+            pop = population.loc[logrec.name]
+            for item in logrec.index:
+                if 'NH' in item:
+                    temp_pop = pop[(pop.Age == 2) & (start_locations[pop.p_id] == 0)]
                 else:
-                    pop = pop[pop['Start_Location'] == community].sample(total_count)
+                    temp_pop = pop[start_locations[pop.p_id] == 0]
+                if len(temp_pop) > 0:
+                    ids = temp_pop.sample(int(min(temp_pop.shape[0], logrec[item]))).p_id
+                    for x_id in ids:
+                        start_locations[x_id] = locations.values[item]['int']
+                else:
+                    print('Tried to select patients for logrec {} & facility {}, but none were found.'.format(
+                        logrec.name, item))
 
-                # --- for each of the locations, assign the appropriate number of people
-                count = 0
-                for j in locations:
-                    for k in range(int(row[j])):
-                        p_id = pop['p_id'].values[count:(count + 1)][0]
-                        population2[p_id][start_location_index] = j
-                        count = count + 1
-
-            except Exception as E:
-                failed_count += total_count
-                if print_warnings:
-                    print(E)
-                    print('Population did not have combination of: ')
-                    print(str(row[['County_Code', 'Sex', 'Age', 'Race']]))
-                    print("I would like to assign %s people to this population" % str(total_count))
-
-    df = pd.DataFrame(population2)
-    df.columns = population.reset_index().columns
-    df = df.drop(['p_id'], axis=1)
-
-    return df
+    df['Start_Location'] = start_locations
+    return df.drop(['p_id'], axis='columns')
 
 
-def extract_syn_pop(exp_dir):
-    """ Extract the necessary columns from the 2013 synthetic population to use for NCMiND
-
-    Parameters
-    ----------
-    exp_dir : str
-        The directory of the experiment
-
+def extract_syn_pop():
+    """ Extract the necessary columns from the 2017 synthetic population to use for NCMiND
     """
 
-    # ----- Read the 2013 Synthetic Persons and Households files
-    df = pd.read_csv('base_files/syn_pop_NC/NC2013Persons.csv')[['p_id', 'hh_id', 'age', 'sex', 'race', 'co']]
-    df_household = pd.read_csv('base_files/syn_pop_NC/NC2013Households.csv')[['hh_id', 'latitude', 'longitude']]
+    # ----- Read the 2017 Synthetic Persons and Households files
+    df = pd.read_csv('NCMIND/data/synthetic_population/37/NC2017_Persons.csv',
+                    usecols=['hh_id', 'agep', 'sex', 'rac1p'])
+    df_household = pd.read_csv('NCMIND/data/synthetic_population/37/NC2017_Households.csv',
+                               usecols=['hh_id', 'logrecno', 'county', 'tract', 'blkgrp'])
     df = df.merge(df_household)
 
-    df = df.rename(columns={'age': 'Age', 'sex': 'Sex', 'race': 'Race', 'co': 'County_Code'})
+    df = df.rename(columns={'agep': 'Age', 'sex': 'Sex', 'rac1p': 'Race', 'county': 'County_Code'})
 
     # ----- Correct the Age
     df['Age_Years'] = df['Age']
@@ -213,31 +192,43 @@ def extract_syn_pop(exp_dir):
     # --- Correct the Race
     df.loc[df['Race'] > 2, 'Race'] = 3
 
-    df = df.drop(['p_id', 'hh_id'], axis=1)
-
-    df = df[['County_Code', 'Sex', 'Age', 'Race', 'Age_Years', 'latitude', 'longitude']]
+    df = df[['County_Code', 'Sex', 'Age', 'Race', 'Age_Years', 'tract', 'blkgrp', 'logrecno']]
 
     # ----- Make sure every demographic has at least 3 agents.
-    df = rule_of_x(df, x=3)
+    df = rule_of_3(df)
 
-    # ----- Pad the population to 10,042,802 people
+    # ----- Pad the population to 10m people. The approximate population of NC
     number_to_add = 10_042_802 - df.shape[0]
     new_people = df.sample(number_to_add)
     df = df.append(new_people)
+    df = df.reset_index(drop=True)
 
-    df = initialize_syn_pop(exp_dir, df, print_warnings=True)
-    df.to_csv(Path(exp_dir,  "data/synthetic_population/synthetic_population.csv"), index=False)
-
-    print_summary(exp_dir, df)
-
-    # Now limit to orange county, and create another file
+    # ----- Initialize the population with a starting location
+    df = initialize_syn_pop(df)
+    # --- Save the full population
+    df.to_csv("NCMIND/data/synthetic_population/synthetic_population.csv", index=False)
+    # --- Now limit to orange county, and create another file
     df_orange = df[df['County_Code'] == 135]
-    df_orange.to_csv(Path(exp_dir,  "data/synthetic_population/synthetic_population_orange.csv"), index=False)
+    df_orange.to_csv("NCMIND/data/synthetic_population/synthetic_population_orange.csv", index=False)
+
+    # ----- Aggregate by County and Age
+    (df
+        .groupby(by=['County_Code', 'Age'])
+        .size()
+        .reset_index()
+        .to_csv("NCMIND/data/temp/population_by_county_age.csv", index=False))
+    # ----- Aggregate by County
+    (df
+        .groupby(by=['County_Code'])
+        .size()
+        .reset_index()
+        .to_csv("NCMIND/data/temp/population_by_county.csv", index=False))
 
 
 if __name__ == '__main__':
     parser = arg.ArgumentParser(description='None')
 
+    # Set the random seed
     parser.add_argument(
         '--seed',
         type=str,
@@ -246,11 +237,6 @@ if __name__ == '__main__':
     )
 
     args = parser.parse_args()
-
-    # Make the directory if it doesn't exist
-    d = Path("NCMIND/data/synthetic_population")
-    d.mkdir(exist_ok=True)
-
     np.random.seed(args.seed)
 
-    extract_syn_pop(exp_dir='NCMIND')
+    extract_syn_pop()

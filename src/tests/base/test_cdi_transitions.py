@@ -1,4 +1,3 @@
-
 from src.tests.fixtures import model
 
 # def test_risk_transitions(model):
@@ -43,4 +42,4 @@ from src.tests.fixtures import model
 #     assert len(keys) == 14 * 2 * 2 * 4 * 3 * 3 * 4
 
 
-__all__ = ['model']
+__all__ = ["model"]

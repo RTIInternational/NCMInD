@@ -1,4 +1,3 @@
-
 import numpy as np
 from src.state import NameState, LifeState, SingleEvent
 
@@ -11,8 +10,7 @@ class Life(SingleEvent):
         self.params = params
         self.agents_to_recreate = []
         self.initiate_values(
-            count=len(self.model.population),
-            value=LifeState.ALIVE.value,
+            count=len(self.model.population), value=LifeState.ALIVE.value,
         )
 
     def step(self):

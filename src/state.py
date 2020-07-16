@@ -1,4 +1,3 @@
-
 import numpy as np
 from enum import IntEnum
 from src.misc_functions import create_cdf
@@ -46,15 +45,15 @@ class ConcurrentConditions(IntEnum):
     YES = 1
 
 
-NameState.id = 'NAME'
-LifeState.id = 'LIFE'
-AntibioticsState.id = 'ANTIBIOTICS'
-CDIState.id = 'CDI'
-CREState.id = 'CRE'
-AgeGroup.id = 'AGE'
+NameState.id = "NAME"
+LifeState.id = "LIFE"
+AntibioticsState.id = "ANTIBIOTICS"
+CDIState.id = "CDI"
+CREState.id = "CRE"
+AgeGroup.id = "AGE"
 
 
-class EventState():
+class EventState:
     def __init__(self, enum: IntEnum, transition_dict: dict, key_types: list):
         self.enum = enum
         self.integers = [item.value for item in enum]
@@ -71,6 +70,7 @@ class EventState():
 class SingleEvent(EventState):
     """ A state class for events that only have one option (i.e. a probability of death)
     """
+
     def __init__(self, enum, transition_dict, key_types):
         super().__init__(enum, transition_dict, key_types)
 
@@ -88,6 +88,7 @@ class SingleEvent(EventState):
 class MultipleEvent(EventState):
     """ A state class for States that can transition multiples states (i.e. an agent being sick)
     """
+
     def __init__(self, enum, transition_dict, key_types):
         super().__init__(enum, transition_dict, key_types)
 
@@ -97,8 +98,10 @@ class MultipleEvent(EventState):
 
     def check_inputs(self):
         for k, v in self.transition_dict.items():
-            if not np.isclose(1, sum(v), .000001):
-                raise ValueError("Key {} for transition_dict does not sum to 1.".format(k))
+            if not np.isclose(1, sum(v), 0.000001):
+                raise ValueError(
+                    "Key {} for transition_dict does not sum to 1.".format(k)
+                )
 
     def create_cdf_dict(self):
         for k, v in self.transition_dict.items():
@@ -113,8 +116,9 @@ class MultipleEvent(EventState):
         return probabilities
 
 
-class Empty():
+class Empty:
     """ An empty state to house extra arrays or dictionaries
     """
+
     def __init__(self, data_type):
         self.data_type = data_type

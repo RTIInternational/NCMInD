@@ -1,9 +1,8 @@
-
 from src.misc_functions import create_cdf, normalize_and_create_cdf, random_selection
 
 
 def test_create_cdf():
-    p = [0, .2, .7, .1]
+    p = [0, 0.2, 0.7, 0.1]
     cdf = create_cdf(p)
     # ----- The first value of CDF should equal the first value of p
     assert p[0] == cdf[0]
@@ -14,7 +13,7 @@ def test_create_cdf():
 
 
 def test_normalize_and_create_cdf():
-    p = [0, .2, .7]
+    p = [0, 0.2, 0.7]
     cdf = normalize_and_create_cdf(p)
     # ----- The first value of CDF should equal the first value of p
     assert p[0] == cdf[0]
@@ -25,13 +24,13 @@ def test_normalize_and_create_cdf():
 
 
 def test_random_selection():
-    p = [.1, .1, .7, .1]
+    p = [0.1, 0.1, 0.7, 0.1]
     options = [0, 1, 2, 3]
     cdf = create_cdf(p)
-    rs = random_selection(.95, cdf, options)
+    rs = random_selection(0.95, cdf, options)
     # ----- .95 is between .9 and 1.0, so 2 is selected
     assert rs == 3
-    rs = random_selection(.5, cdf, options)
+    rs = random_selection(0.5, cdf, options)
     # ----- .5 is between .2 and .7, so 2 is selected
     assert rs == 2
     rs = random_selection(0.11, cdf, options)
