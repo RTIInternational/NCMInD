@@ -49,7 +49,11 @@
 				"antibiotics": 0.4495
 			},
 			"UNC_1": {
+<<<<<<< HEAD
 				"name": "Chatham",
+=======
+				"name": "Chatham", 
+>>>>>>> 5648d68836179261fc5b458a48a08ec66efd8b8b
 				"los": {
 					"distribution": "Gamma",
 					"shape": 0.93751575,
@@ -71,7 +75,11 @@
 				"antibiotics": 0.25077
 			},
 			"UNC_3": {
+<<<<<<< HEAD
 				"name": "Johnston",
+=======
+				"name": "Johnston", 
+>>>>>>> 5648d68836179261fc5b458a48a08ec66efd8b8b
 				"los": {
 					"distribution": "Gamma",
 					"shape": 1.184256055,
@@ -115,7 +123,11 @@
 				"antibiotics": 0.25077
 			},
 			"UNC_7": {
+<<<<<<< HEAD
 				"name": "UNC Rex",
+=======
+				"name": "UNC Rex", 
+>>>>>>> 5648d68836179261fc5b458a48a08ec66efd8b8b
 				"los": {
 					"distribution": "Gamma",
 					"shape": 0.862244898,
@@ -225,7 +237,11 @@
 			"tuning": {
 				"COMMUNITY": 0.5,
 				"UNC": 1.5,
+<<<<<<< HEAD
 				"LARGE": 1.6,
+=======
+				"LARGE": 1.6, 
+>>>>>>> 5648d68836179261fc5b458a48a08ec66efd8b8b
 				"SMALL": 1.6,
 				"LT": 1,
 				"NH": 1
@@ -250,7 +266,11 @@
 			"tuning": {
 				"COMMUNITY": 1.20,
 				"UNC": 4.25,
+<<<<<<< HEAD
 				"LARGE": 4.25,
+=======
+				"LARGE": 4.25, 
+>>>>>>> 5648d68836179261fc5b458a48a08ec66efd8b8b
 				"SMALL": 4.25,
 				"LT": 2.75,
 				"NH": 1.5
@@ -258,7 +278,11 @@
 			"initialization": {
 				"COMMUNITY": 0.066,
 				"UNC": 0.11,
+<<<<<<< HEAD
 				"LARGE": 0.11,
+=======
+				"LARGE": 0.11, 
+>>>>>>> 5648d68836179261fc5b458a48a08ec66efd8b8b
 				"SMALL": 0.11,
 				"LT": 0.148,
 				"NH": 0.148
@@ -279,6 +303,7 @@
 		"antibiotic_administration_sd": 2,
 		"antibiotic_full_dose_length": 90,
 		"distributions": {
+<<<<<<< HEAD
 			"COMMUNITY": [
 				0.10,
 				0.60,
@@ -309,6 +334,38 @@
 				0.60,
 				0.30
 			]
+=======
+			"COMMUNITY": [
+				0.10,
+				0.60,
+				0.30
+			],
+			"UNC": [
+				0.40,
+				0.30,
+				0.30
+			],
+			"LARGE": [
+				0.40,
+				0.30,
+				0.30
+			],
+			"SMALL": [
+				0.40,
+				0.30,
+				0.30
+			],
+			"LT": [
+				0.40,
+				0.30,
+				0.30
+			],
+			"NH": [
+				0.10,
+				0.60,
+				0.30
+			]
+>>>>>>> 5648d68836179261fc5b458a48a08ec66efd8b8b
 		},
 		"relative_risk": {
 			"cdi": {
@@ -319,4 +376,8 @@
 			}
 		}
 	}
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 5648d68836179261fc5b458a48a08ec66efd8b8b
