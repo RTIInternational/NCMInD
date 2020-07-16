@@ -1,12 +1,5 @@
-<<<<<<< HEAD
-## Transition Data
-=======
-## COVID
-
 
 ### Transition Data
->>>>>>> 5648d68836179261fc5b458a48a08ec66efd8b8b
-
 The data behind the location transitions is not all publicly available. We have provided the aggregated transition data, but remove the source of the data. 
 
 #### PDF Data
