@@ -1,6 +1,6 @@
 pytest==4.6.3
 pytest-cov==2.7.1 
-numpy==1.17.4
+numpy==1.22.0
 numba==0.47
 pandas==0.25.3
 Pillow==6.2.0
